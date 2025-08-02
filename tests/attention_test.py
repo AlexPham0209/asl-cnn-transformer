@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import MultiheadAttention
-from asl_research.transformer import TransformerEncoder, generate_square_subsequent_mask, generate_subsequent_mask, ScaledDotProductAttention, MultiHeadAttention
+from asl_research.model import TransformerEncoder, generate_square_subsequent_mask, generate_subsequent_mask, ScaledDotProductAttention, MultiHeadAttention
 
 def test_self_attention_equal():
     batch_size, n_head, sequence_size, d_model = 16, 8, 10, 64

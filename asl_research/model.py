@@ -171,15 +171,24 @@ class PositionWiseFeedForward(nn.Module):
     def __init__(self, d_model: int, hidden_size: int, dropout: float = 0.1):
         super(PositionWiseFeedForward, self).__init__()
         self.w1 = nn.Linear(in_features=d_model, out_features=hidden_size)
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU(inplace=True)
         self.w2 = nn.Linear(in_features=hidden_size, out_features=d_model)
-        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor):
+        """
+        Feeds input tensor into the first linear layer to get a tensor of shape (batch_size, sequence_size, hidden_size)
+        Apply ReLU activation
+        Then, feed it into a second linear layer to retrieve a final output tensor of shape (batch_size, sequence_size, d_model)
+
+        Args:
+            x (Tensor): Input tensor (batch_size, sequence_size, d_model)
+        
+        Returns:
+            (Tensor): Output tensor (batch_size, sequence_size, d_model)
+        
+        """
         x = self.w1(x)
         x = self.relu(x)
-        x = self.dropout(x)
-
         return self.w2(x)
     
 class EncoderLayer(nn.Module):
@@ -199,7 +208,6 @@ class EncoderLayer(nn.Module):
     def forward(self, x: torch.Tensor, src_mask: Optional[torch.Tensor] = None):
         # Self Attention
         # Shape: (batch_size, sequence_size, d_model)
-
         x = x + self.attention(q=x, k=x, v=x, mask=src_mask)
         x = self.layer_norm_1(x)
         x = self.dropout_1(x)
@@ -261,11 +269,11 @@ class TransformerEncoder(nn.Module):
         self.pe = PositionalEncoding(d_model)
         self.layers = nn.ModuleList([EncoderLayer(d_model, hidden_size, dropout) for _ in range(num_layers)])
         
-    def forward(self, x: Tensor, src_mask: Optional[Tensor] = None):
+    def forward(self, x: Tensor, mask: Optional[Tensor] = None):
         x = self.pe(x)
 
         for layer in self.layers:
-            x = layer(x, src_mask)
+            x = layer(x, mask)
         
         return x 
     
@@ -276,13 +284,86 @@ class TransformerDecoder(nn.Module):
         self.pe = PositionalEncoding(d_model)
         self.layers = nn.ModuleList([DecoderLayer(d_model, hidden_size, dropout) for _ in range(num_layers)])
         
-    def forward(self, x: Tensor, encoded: Tensor, src_mask: Optional[Tensor] = None, trg_mask: Optional[Tensor] = None):
+    def forward(self, x: Tensor, encoded: Tensor, mask: Optional[Tensor] = None):
         x = self.pe(x)
 
         for layer in self.layers:
-            x = layer(x, encoded, src_mask, trg_mask)
+            x = layer(x, encoded, mask)
         
         return x 
+
+class Conv3DBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3, 3), max_pool_kernel_size: tuple = (2, 2, 2)):
+        super(Conv3DBlock, self).__init__()
+        self.conv = nn.Conv3d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.relu = nn.ReLU(inplace=True)
+        self.batch_norm = nn.BatchNorm3d(out_channels)
+        self.max_pool = nn.MaxPool3d(kernel_size=max_pool_kernel_size)
+
+    def forward(self, x):
+        """
+        Convolution Block for the spatial embedding layer
+
+        Args:
+            x: Batch of videos (batch_size, in_channels, depth, height, width)
+
+        Returns:
+            (Tensor): Tensor of shape (batch_size, out_channels, depth_out, height_out, width_out)
+        """
+
+        x = self.conv(x)
+        x = self.relu(x)
+        x = self.batch_norm(x)
+        x = self.max_pool(x)
+        return x
+    
+class SpatialEmbedding(nn.Module):
+    def __init__(self, d_model: int = 512, dropout: float = 0.1):
+        super(SpatialEmbedding, self).__init__()
+        self.conv = nn.Sequential(
+            # Spatial temporal decomposition
+            Conv3DBlock(in_channels=3, out_channels=32),
+            Conv3DBlock(in_channels=32, out_channels=64),
+            Conv3DBlock(in_channels=64, out_channels=128),
+
+            # Only spatial-decomposition
+            Conv3DBlock(in_channels=128, out_channels=64, max_pool_kernel_size=(1, 2, 2)),
+            Conv3DBlock(in_channels=64, out_channels=32, max_pool_kernel_size=(1, 2, 2)),
+        )
+
+        self.ff_1 = nn.Sequential(
+            nn.Linear(in_features=800, out_features=512),
+            nn.ReLU(),
+            nn.Dropout(p=dropout)
+        )
+
+        self.ff_2 = nn.Linear(512, d_model)
+
+    def forward(self, x: Tensor):
+        """
+            Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
+
+            Args:
+            x: Batch of videos (batch_size, in_channels, time, 224, 224)
+
+            Returns:
+                (Tensor): Tensor of shape (batch_size, time_out, depth_out * height_out * width_out)
+        """
+        x = self.conv(x)
+        N, _, T, _, _ = x.shape
+
+        # Reshapes the tensor from (batch_size, height)
+        x = x.transpose(1, 2).reshape(N, T, -1)
+        x = self.ff_1(x)
+        x = self.ff_2(x)
+        return x
+
+
+        
+
+class SLTCNNTransformer():
+    def __init__(self):
+        pass
 
 def generate_square_subsequent_mask(size):
     mask = torch.tril(torch.ones((size, size))) == 1
