@@ -82,9 +82,9 @@ class MultiHeadAttention(nn.Module):
 
         # Split tensor into heads
         # Shape: (batch_size, sequence_length, d_model)
-        q = self.split(q)
-        k = self.split(k)
-        v = self.split(v)
+        q = split(q, self.num_heads)
+        k = split(k, self.num_heads)
+        v = split(v, self.num_heads)
 
         # Calculate the attention score which is used to gauge which tokens are important to each token
         # Shape: (batch_size, num_heads, sequence_size, d_model // num_heads)
@@ -92,46 +92,11 @@ class MultiHeadAttention(nn.Module):
         
         # Concatenate heads together
         # Shape: (batch_size, target_sequence_length, d_model)
-        out = self.concat(out)
+        out = concat(out)
 
         # Determines which token/word it should attend to?
         # Shape: (batch_size, target_sequence_length, d_model)
         return self.w_o(out)
-
-
-    def split(self, x: Tensor):
-        """
-        Splits the tensor into num_heads
-
-        Args:
-            x (Tensor): Original tensor (batch_size, sequence_size, d_model)
-
-        Returns:
-            Tensor: Tensor that is split into n heads 
-            (batch_size, num_heads, sequence_size, d_model // num_heads)
-        """
-        # Shape: (batch_size, sequence_length, d_model)
-        N, length, _ = x.shape
-
-        # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
-        return x.reshape(N, length, self.num_heads, -1).transpose(1, 2)
-    
-    def concat(self, x: Tensor):
-        """
-        Concatenate the tensor's heads together
-
-        Args:
-            x (Tensor): Original tensor (batch_size, num_heads, sequence_size, d_model // num_heads)
-
-        Returns:
-            Tensor: Tensor that is split into n heads (batch_size, sequence_size, d_model)
-        """
-
-        N, _, length, _ = x.shape
-
-        # Transpose into (batch_size, sequence_length, num_heads, d_model)
-        # Then, reshape into (batch_size, sequence_length, d_model)
-        return x.transpose(1, 2).reshape(N, length, -1)
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
@@ -293,12 +258,11 @@ class TransformerDecoder(nn.Module):
         return x 
 
 class Conv3DBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3, 3), max_pool_kernel_size: tuple = (2, 2, 2)):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3, 3)):
         super(Conv3DBlock, self).__init__()
         self.conv = nn.Conv3d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
-        self.relu = nn.ReLU(inplace=True)
         self.batch_norm = nn.BatchNorm3d(out_channels)
-        self.max_pool = nn.MaxPool3d(kernel_size=max_pool_kernel_size)
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
         """
@@ -312,27 +276,29 @@ class Conv3DBlock(nn.Module):
         """
 
         x = self.conv(x)
-        x = self.relu(x)
         x = self.batch_norm(x)
-        x = self.max_pool(x)
+        x = self.relu(x)
         return x
     
-class SpatialEmbedding(nn.Module):
+class Spatial3DEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):
-        super(SpatialEmbedding, self).__init__()
+        super(Spatial3DEmbedding, self).__init__()
         self.conv = nn.Sequential(
-            # Spatial temporal decomposition
             Conv3DBlock(in_channels=3, out_channels=32),
+            nn.MaxPool3d(kernel_size=(2, 2, 2)),
+
             Conv3DBlock(in_channels=32, out_channels=64),
-            Conv3DBlock(in_channels=64, out_channels=128),
+            nn.MaxPool3d(kernel_size=(2, 2, 2)),
 
-            # Only spatial-decomposition
-            Conv3DBlock(in_channels=128, out_channels=64, max_pool_kernel_size=(1, 2, 2)),
-            Conv3DBlock(in_channels=64, out_channels=32, max_pool_kernel_size=(1, 2, 2)),
+            Conv3DBlock(in_channels=64, out_channels=32, kernel_size=(2, 2, 2)),
+            nn.MaxPool3d(kernel_size=(1, 2, 2)),
+
+            Conv3DBlock(in_channels=32, out_channels=16, kernel_size=(2, 2, 2)),
+            nn.MaxPool3d(kernel_size=(1, 2, 2)),
         )
-
+        
         self.ff_1 = nn.Sequential(
-            nn.Linear(in_features=800, out_features=512),
+            nn.Linear(in_features=2304, out_features=512),
             nn.ReLU(),
             nn.Dropout(p=dropout)
         )
@@ -356,14 +322,47 @@ class SpatialEmbedding(nn.Module):
         x = x.transpose(1, 2).reshape(N, T, -1)
         x = self.ff_1(x)
         x = self.ff_2(x)
-        return x
-
-
         
+        return x
 
 class SLTCNNTransformer():
     def __init__(self):
         pass
+
+
+def split(x: Tensor, num_heads: int):
+    """
+    Splits the tensor into num_heads
+
+    Args:
+         x (Tensor): Original tensor (batch_size, sequence_size, d_model)
+
+    Returns:
+        Tensor: Tensor that is split into n heads 
+        (batch_size, num_heads, sequence_size, d_model // num_heads)
+    """
+        # Shape: (batch_size, sequence_length, d_model)
+    N, length, _ = x.shape
+
+    # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
+    return x.reshape(N, length, num_heads, -1).transpose(1, 2)
+    
+def concat(x: Tensor):
+    """
+    Concatenate the tensor's heads together
+
+    Args:
+        x (Tensor): Original tensor (batch_size, num_heads, sequence_size, d_model // num_heads)
+
+    Returns:
+        Tensor: Tensor that is split into n heads (batch_size, sequence_size, d_model)
+    """
+
+    N, _, length, _ = x.shape
+
+    # Transpose into (batch_size, sequence_length, num_heads, d_model)
+    # Then, reshape into (batch_size, sequence_length, d_model)
+    return x.transpose(1, 2).reshape(N, length, -1)
 
 def generate_square_subsequent_mask(size):
     mask = torch.tril(torch.ones((size, size))) == 1
@@ -374,3 +373,4 @@ def generate_subsequent_mask(height, width):
     mask = torch.tril(torch.ones((height, width))) == 1
     mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
     return mask
+

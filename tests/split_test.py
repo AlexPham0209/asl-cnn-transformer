@@ -1,12 +1,6 @@
 import pytest
 import torch 
-
-def split(x, num_heads):
-    # Shape: (Batch Size, Sequence Length, d_model)
-    N, length, d_model = x.shape
-
-    # Reshape into length: (Batch Size, Sequence Length, d_models / num_heads, )
-    return x.reshape(N, length, num_heads, -1).transpose(1, 2)
+from asl_research.model import split
 
 def split_2(x, num_heads):
     # Shape: (Batch Size, Sequence Length, d_model)
