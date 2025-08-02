@@ -188,69 +188,68 @@ class EncoderLayer(nn.Module):
 
         # Self Attention
         self.attention = MultiHeadAttention(d_model)
-        self.dropout = nn.Dropout(p=dropout)
         self.layer_norm_1 = nn.LayerNorm(d_model)
+        self.dropout_1 = nn.Dropout(p=dropout)
 
         # Position-Wise Feed Forward
         self.ff = PositionWiseFeedForward(d_model, hidden_size, dropout)
         self.layer_norm_2 = nn.LayerNorm(d_model)
+        self.dropout_2 = nn.Dropout(p=dropout)
     
     def forward(self, x: torch.Tensor, src_mask: Optional[torch.Tensor] = None):
         # Self Attention
         # Shape: (batch_size, sequence_size, d_model)
-        _x = x 
-        x = self.attention(q=x, k=x, v=x, mask=src_mask)
-        x = self.dropout(x)
-        x = self.layer_norm_1(_x + x)
+
+        x = x + self.attention(q=x, k=x, v=x, mask=src_mask)
+        x = self.layer_norm_1(x)
+        x = self.dropout_1(x)
         
         # Position-Wise Feed Forward
         # Shape: (batch_size, sequence_size, d_model)
-        _x = x 
-        x = self.ff(x)
-        x = self.layer_norm_2(_x + x)
+        x = x + self.ff(x)
+        x = self.layer_norm_2(x)
+        x = self.dropout_2(x)
 
         return x
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model: int, hidden_size: int, dropout: float = 0.1):
+    def __init__(self, d_model: int, hidden_size: int = 512, dropout: float = 0.1):
         super(DecoderLayer, self).__init__()
 
         # Self Attention
         self.self_attention = MultiHeadAttention(d_model)
-        self.dropout_1 = nn.Dropout(dropout)
         self.layer_norm_1 = nn.LayerNorm(d_model)
+        self.dropout_1 = nn.Dropout(dropout)
 
         # Cross Attention
         self.cross_attention = MultiHeadAttention(d_model)
-        self.dropout_2 = nn.Dropout(dropout)
         self.layer_norm_2 = nn.LayerNorm(d_model)
+        self.dropout_2 = nn.Dropout(dropout)
 
         # Position-Wise Feed Forward
         self.ff = PositionWiseFeedForward(d_model, hidden_size)
-        self.dropout_3 = nn.Dropout(dropout)
         self.layer_norm_3 = nn.LayerNorm(d_model)
+        self.dropout_3 = nn.Dropout(dropout)
 
-    def forward(self, x: Tensor, encoded: Tensor, src_mask: Optional[Tensor] = None, trg_mask: Optional[Tensor] = None):
+    def forward(self, x: Tensor, encoded: Optional[Tensor] = None, mask: Optional[Tensor] = None):
         # Masked Self Attention
         # Shape: (batch_size, target_sequence_size, d_model)
-        _x = x
-        x = self.self_attention(q=x, k=x, v=x, mask=trg_mask)
-        x = self.layer_norm_1(_x + x)
+        x = x + self.self_attention(q=x, k=x, v=x, mask=mask)
+        x = self.layer_norm_1(x)
         x = self.dropout_1(x)
-
-        # Cross Attention
-        # Shape: (batch_size, target_sequence_size, d_model)
-        _x = x 
-        x = self.cross_attention(q=x, k=encoded, v=encoded)
-        x = self.dropout_2(x)
-        x = self.layer_norm_2(_x + x)
+        
+        if encoded is not None:
+            # Cross Attention
+            # Shape: (batch_size, target_sequence_size, d_model)
+            x = x + self.cross_attention(q=x, k=encoded, v=encoded)
+            x = self.layer_norm_2(x)
+            x = self.dropout_2(x)
         
         # Position-Wise Feed Forward
         # Shape: (batch_size, target_sequence_size, d_model)
-        _x = x
-        x = self.ff(x)
+        x = x + self.ff(x)
+        x = self.layer_norm_3(x)
         x = self.dropout_3(x)
-        x = self.layer_norm_3(_x + x)
 
         return x 
 
@@ -287,10 +286,10 @@ class TransformerDecoder(nn.Module):
 
 def generate_square_subsequent_mask(size):
     mask = torch.tril(torch.ones((size, size))) == 1
-    mask = mask.float().masked_fill(mask == True, 0).masked_fill(mask == False, -torch.inf)
+    mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
     return mask
 
 def generate_subsequent_mask(height, width):
     mask = torch.tril(torch.ones((height, width))) == 1
-    mask = mask.float().masked_fill(mask == True, 0).masked_fill(mask == False, -torch.inf)
+    mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
     return mask
