@@ -12,3 +12,4 @@ def test_encoder_shape():
     
     out = encoder(x, mask).to(DEVICE)
     assert torch.equal(torch.tensor(x.shape), torch.tensor([batch_size, sequence_length, d_model]))
+

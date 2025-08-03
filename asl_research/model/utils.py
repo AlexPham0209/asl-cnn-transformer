@@ -39,12 +39,16 @@ def concat(x: Tensor):
     # Then, reshape into (batch_size, sequence_length, d_model)
     return x.transpose(1, 2).reshape(N, length, -1)
 
-def generate_square_subsequent_mask(size):
-    mask = torch.tril(torch.ones((size, size))) == 1
-    mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
+def generate_square_subsequent_mask(x: Tensor, pad_token: int):
+    N, sequence_length = x.shape
+    causal_mask = torch.tril(torch.ones((N, 1, sequence_length, sequence_length))) == 1
+    padding_mask = generate_padding_mask(x, pad_token)
+    mask = causal_mask & padding_mask
+
     return mask
 
-def generate_subsequent_mask(height, width):
-    mask = torch.tril(torch.ones((height, width))) == 1
-    mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
-    return mask
+def generate_padding_mask(x: Tensor, pad_token: int):
+    N, sequence_length = x.shape
+    return (x != 0).unsqueeze(1).unsqueeze(2)
+
+
