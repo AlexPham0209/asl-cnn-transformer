@@ -21,7 +21,7 @@ class BaseTransformer(nn.Module):
     ):
         super(BaseTransformer, self).__init__()
         self.pad_token = pad_token
-        
+
         # Encoder
         self.src_embedding = nn.Embedding(src_vocab_size, embedding_dim=d_model)
         self.encoder = TransformerEncoder(
@@ -39,15 +39,19 @@ class BaseTransformer(nn.Module):
 
     def forward(self, src: Tensor, trg: Tensor):
         src_mask: Tensor = generate_padding_mask(src, self.pad_token)
-        src_mask = src_mask.float().masked_fill(src_mask == 1, 0).masked_fill(src_mask == 0, -torch.inf)
-        
+        src_mask = (
+            src_mask.float().masked_fill(src_mask == 1, 0).masked_fill(src_mask == 0, -torch.inf)
+        )
+
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token)
-        trg_mask: Tensor = trg_mask.float().masked_fill(trg_mask == 1, 0).masked_fill(trg_mask == 0, -torch.inf)
+        trg_mask: Tensor = (
+            trg_mask.float().masked_fill(trg_mask == 1, 0).masked_fill(trg_mask == 0, -torch.inf)
+        )
 
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
 
         src = self.encoder(src, src_mask)
-        trg = self.decoder(trg, src, trg_mask)
+        trg = self.decoder(trg, src, trg_mask, src_mask)
 
         return self.ff(trg)
