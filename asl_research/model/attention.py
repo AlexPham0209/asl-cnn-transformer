@@ -85,10 +85,11 @@ class ScaledDotProductAttention(nn.Module):
         qk = q @ k.transpose(-2, -1)
         scores = qk / math.sqrt(k.shape[-1])
 
-        # Filled all elements where the with -torch.inf
+        # Filled all elements that are either padding tokens or in the future with -torch.inf
         if mask is not None:
-            scores = scores + mask
-
+            scores = scores.masked_fill(mask == 0, -torch.inf)
+            print(scores)
+        
         # Calculate a probability distribution with the current token to all other tokens in the sequence
         scores = self.softmax(scores)
 

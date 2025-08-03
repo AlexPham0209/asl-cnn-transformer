@@ -40,14 +40,7 @@ class BaseTransformer(nn.Module):
 
     def forward(self, src: Tensor, trg: Tensor):
         src_mask: Tensor = generate_padding_mask(src, self.pad_token)
-        src_mask = (
-            src_mask.float().masked_fill(src_mask == 1, 0).masked_fill(src_mask == 0, -torch.inf)
-        )
-
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token)
-        trg_mask: Tensor = (
-            trg_mask.float().masked_fill(trg_mask == 1, 0).masked_fill(trg_mask == 0, -torch.inf)
-        )
 
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
@@ -73,10 +66,7 @@ class BaseTransformer(nn.Module):
 
         for _ in range(max_len):
             mask = generate_square_subsequent_mask(sequence.shape[-1], pad_token=0)
-            mask = (
-                mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
-            )
-            
+
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.decoder(self.trg_embedding(sequence), src, mask, src_mask)
             _, next_word = torch.max(out[:, :, -1], dim=-1)

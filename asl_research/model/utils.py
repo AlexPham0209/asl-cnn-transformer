@@ -44,13 +44,13 @@ def concat(x: Tensor):
 
 def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     N, sequence_length = x.shape
-    causal_mask = torch.tril(torch.ones((N, 1, sequence_length, sequence_length))) == 1
-    padding_mask = generate_padding_mask(x, pad_token)
+    causal_mask = torch.tril(torch.ones((N, 1, sequence_length, sequence_length))).bool()
+    padding_mask = generate_padding_mask(x, pad_token).bool()
+
     mask = causal_mask & padding_mask
-
     return mask
-
 
 def generate_padding_mask(x: Tensor, pad_token: int):
     N, sequence_length = x.shape
-    return (x != 0).unsqueeze(1).unsqueeze(2)
+    return (x != pad_token).unsqueeze(1).unsqueeze(2).bool()
+

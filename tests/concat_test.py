@@ -19,7 +19,7 @@ def test_split_shape():
     tensor = torch.arange(0, 5 * 8 * 6 * 64).reshape(5, 8, 6, 64)
     tensor = concat(tensor)
 
-    assert torch.equal(torch.tensor(tensor.shape), torch.tensor([5, 6, 512]))
+    assert tensor.shape == (5, 6, 512)
 
 def test_split_equal():
     tensor = torch.arange(0, 5 * 8 * 6 * 64).reshape(5, 8, 6, 64)

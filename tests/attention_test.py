@@ -12,7 +12,6 @@ def test_self_attention_equal():
     v = torch.rand(batch_size, n_head, sequence_size, d_model)
 
     mask = generate_square_subsequent_mask(torch.ones(batch_size, sequence_size), 0)
-    mask = mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
     attention = ScaledDotProductAttention()
     
     a = scaled_dot_product_attention(q, k, v, mask)

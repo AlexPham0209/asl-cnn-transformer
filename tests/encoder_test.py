@@ -10,5 +10,5 @@ def test_encoder_shape():
     x = torch.rand(batch_size, sequence_length, d_model).to(DEVICE)
 
     out = encoder(x).to(DEVICE)
-    assert torch.equal(torch.tensor(x.shape), torch.tensor([batch_size, sequence_length, d_model]))
+    assert x.shape == (batch_size, sequence_length, d_model)
 

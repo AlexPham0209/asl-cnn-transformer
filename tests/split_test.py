@@ -14,7 +14,7 @@ def test_split_shape():
     tensor = torch.arange(0, 5 * 6 * 32).reshape(5, 6, 32)
     tensor = split(tensor, num_heads=8)
 
-    assert torch.equal(torch.tensor(tensor.shape), torch.tensor([5, 8, 6, 4]))
+    assert tensor.shape == (5, 8, 6, 4)
 
 def test_split_equal():
     tensor = torch.arange(0, 5 * 6 * 32).reshape(5, 6, 32)

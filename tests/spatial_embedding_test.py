@@ -9,7 +9,7 @@ def test_spatial_embedding_shape_1():
     x = torch.rand(batch_size, channels, depth, height, width).to(DEVICE)
     x = embedding(x)
 
-    assert torch.equal(torch.tensor([x.shape[0], x.shape[-1]]), torch.tensor([batch_size, 512]))
+    assert (x.shape[0], x.shape[-1]) == (batch_size, 512)
 
 def test_spatial_embedding_shape_2():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,7 +18,7 @@ def test_spatial_embedding_shape_2():
     x = torch.rand(batch_size, channels, depth, height, width).to(DEVICE)
     x = embedding(x)
 
-    assert torch.equal(torch.tensor([x.shape[0], x.shape[-1]]), torch.tensor([batch_size, 512]))
+    assert (x.shape[0], x.shape[-1]) == (batch_size, 512)
     
 def test_spatial_embedding_shape_3():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,7 +27,7 @@ def test_spatial_embedding_shape_3():
     x = torch.rand(batch_size, channels, depth, height, width).to(DEVICE)
     x = embedding(x)
 
-    assert torch.equal(torch.tensor([x.shape[0], x.shape[-1]]), torch.tensor([batch_size, 512]))
+    assert (x.shape[0], x.shape[-1]) == (batch_size, 512)
 
 
 def test_conv2d_block():
@@ -36,10 +36,8 @@ def test_conv2d_block():
     embedding = Conv2DBlock(channels, 16).to(DEVICE)
     x = torch.rand(batch_size, channels, depth, height, width).to(DEVICE)
     x = embedding(x)
-
-    print(x.shape)
     
-    assert torch.equal(torch.tensor([x.shape[0], x.shape[2]]), torch.tensor([batch_size, depth]))
+    assert (x.shape[0], x.shape[2]) == (batch_size, depth)
 
 def test_spatial_2d_embedding():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -48,6 +46,4 @@ def test_spatial_2d_embedding():
     x = torch.rand(batch_size, channels, depth, height, width).to(DEVICE)
     x = embedding(x)
 
-    print(x.shape)
-    
-    assert torch.equal(torch.tensor([x.shape[0], x.shape[1]]), torch.tensor([batch_size, depth]))
+    assert (x.shape[0], x.shape[2]) == (batch_size, depth)
