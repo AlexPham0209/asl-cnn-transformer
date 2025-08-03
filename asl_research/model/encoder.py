@@ -59,6 +59,18 @@ class TransformerEncoder(nn.Module):
         )
 
     def forward(self, x: Tensor, mask: Optional[Tensor] = None):
+        """
+        Feeds input tensor through multiple layers of encoders which encodes the
+        input vector into a fixed representation that has the context of the other tokens in the sequence.
+
+        Args:
+            x (Tensor): Input tensor of shape (batch_size, sequence_length, d_model)
+            mask (Optional[Tensor]): A tensor used to mask certain values such as padding tokens during attention (batch_size, 1, sequence_length, sequence_length)
+
+        Returns:
+            Tensor: Encoded tensor of shape (batch_size, sequence_length, d_model)
+        """
+
         x = self.pe(x)
 
         for layer in self.layers:
