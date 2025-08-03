@@ -21,12 +21,11 @@ class PositionWiseFeedForward(nn.Module):
 
         Args:
             x (Tensor): Input tensor (batch_size, sequence_size, d_model)
-        
+
         Returns:
             (Tensor): Output tensor (batch_size, sequence_size, d_model)
-        
+
         """
         x = self.w1(x)
         x = self.relu(x)
         return self.w2(x)
-    

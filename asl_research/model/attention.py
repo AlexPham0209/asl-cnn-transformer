@@ -6,6 +6,7 @@ from torch import Tensor
 import torch.nn as nn
 from asl_research.model.utils import concat, split
 
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: float, num_heads: int = 8):
         super(MultiHeadAttention, self).__init__()
@@ -21,9 +22,9 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None):
         """
-        Splits the query, key, and value tensors into a number of heads 
+        Splits the query, key, and value tensors into a number of heads
         Calculates the attention scores using Scaled Dot Attention
-        Then, 
+        Then,
 
         Args:
             q (Tensor): Query tensor (batch_size, target_sequence_size, d_model)
@@ -42,7 +43,7 @@ class MultiHeadAttention(nn.Module):
         v = self.w_v(v)
 
         # Split tensor into heads
-        # Shape: (batch_size, sequence_length, d_model)
+        # Shape: (batch_size, num_heads, sequence_size, d_model // num_heads)
         q = split(q, self.num_heads)
         k = split(k, self.num_heads)
         v = split(v, self.num_heads)
@@ -50,7 +51,7 @@ class MultiHeadAttention(nn.Module):
         # Calculate the attention score which is used to gauge which tokens are important to each token
         # Shape: (batch_size, num_heads, sequence_size, d_model // num_heads)
         out = self.attention(q, k, v, mask)
-        
+
         # Concatenate heads together
         # Shape: (batch_size, target_sequence_length, d_model)
         out = concat(out)
@@ -58,6 +59,7 @@ class MultiHeadAttention(nn.Module):
         # Determines which token/word it should attend to?
         # Shape: (batch_size, target_sequence_length, d_model)
         return self.w_o(out)
+
 
 class ScaledDotProductAttention(nn.Module):
     def __init__(self):
@@ -74,7 +76,7 @@ class ScaledDotProductAttention(nn.Module):
             v (Tensor): Value tensor (batch_size, num_heads, src_sequence_size, d_model // num_heads)
 
             mask (Optional[Tensor]): Used to mask out elements in the attention score matrix (target_sequence)
-        
+
         Returns:
             Tensor: Attention matrix (batch_size, target_sequence_size, d_model)
         """
@@ -91,4 +93,4 @@ class ScaledDotProductAttention(nn.Module):
         scores = self.softmax(scores)
 
         # Shape: (batch_size, num_heads, target_sequence_size, d_v)
-        return scores @ v 
+        return scores @ v

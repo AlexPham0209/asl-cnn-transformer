@@ -42,5 +42,5 @@ class PositionalEncoding(nn.Module):
             Tensor: Embedding matrix with positions encoded into them
         """
 
-        res = x + self.pe[:x.size(dim=1), :]
+        res = x + self.pe[: x.size(dim=1), :]
         return self.dropout(res)

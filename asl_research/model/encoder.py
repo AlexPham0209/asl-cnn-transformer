@@ -9,8 +9,11 @@ from asl_research.model.positional_embedding import PositionalEncoding
 from asl_research.model.attention import MultiHeadAttention
 from asl_research.model.position_wise_feed_forward import PositionWiseFeedForward
 
+
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1):
+    def __init__(
+        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
+    ):
         super(EncoderLayer, self).__init__()
 
         # Self Attention
@@ -22,14 +25,14 @@ class EncoderLayer(nn.Module):
         self.ff = PositionWiseFeedForward(d_model, hidden_size, dropout)
         self.layer_norm_2 = nn.LayerNorm(d_model)
         self.dropout_2 = nn.Dropout(p=dropout)
-    
+
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
         # Self Attention
         # Shape: (batch_size, sequence_size, d_model)
         x = x + self.attention(q=x, k=x, v=x, mask=mask)
         x = self.layer_norm_1(x)
         x = self.dropout_1(x)
-        
+
         # Position-Wise Feed Forward
         # Shape: (batch_size, sequence_size, d_model)
         x = x + self.ff(x)
@@ -40,17 +43,25 @@ class EncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, num_layers: int, d_model: int = 512, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1):
-        super(TransformerEncoder, self).__init__() 
-        
+    def __init__(
+        self,
+        num_layers: int,
+        d_model: int = 512,
+        num_heads: int = 8,
+        hidden_size: int = 512,
+        dropout: float = 0.1,
+    ):
+        super(TransformerEncoder, self).__init__()
+
         self.pe = PositionalEncoding(d_model)
-        self.layers = nn.ModuleList([EncoderLayer(d_model, hidden_size, num_heads, dropout) for _ in range(num_layers)])
-        
+        self.layers = nn.ModuleList(
+            [EncoderLayer(d_model, hidden_size, num_heads, dropout) for _ in range(num_layers)]
+        )
+
     def forward(self, x: Tensor, mask: Optional[Tensor] = None):
         x = self.pe(x)
 
         for layer in self.layers:
             x = layer(x, mask)
-        
-        return x 
-    
+
+        return x
