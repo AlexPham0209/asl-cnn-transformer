@@ -1,6 +1,7 @@
 import pytest
 import torch
-from asl_research.model import TransformerEncoder, PositionalEncoding, generate_square_subsequent_mask
+from asl_research.model.encoder import TransformerEncoder
+from asl_research.model.utils import generate_square_subsequent_mask
 
 def test_encoder_shape():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -1,6 +1,6 @@
 import pytest
 import torch
-from asl_research.model import TransformerDecoder
+from asl_research.model.decoder import TransformerDecoder
 
 def test_decoder_shape():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

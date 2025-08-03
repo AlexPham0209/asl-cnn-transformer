@@ -1,6 +1,6 @@
 import pytest
 import torch
-from asl_research.model import Spatial3DEmbedding, Spatial2DEmbedding, Conv2DBlock
+from asl_research.model.spatial_embedding import Spatial3DEmbedding, Spatial2DEmbedding, Conv2DBlock
 
 def test_spatial_embedding_shape_1():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

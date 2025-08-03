@@ -1,6 +1,6 @@
 import pytest
 import torch 
-from asl_research.model import split
+from asl_research.model.utils import split
 
 def split_2(x, num_heads):
     # Shape: (Batch Size, Sequence Length, d_model)

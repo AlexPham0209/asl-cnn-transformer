@@ -1,6 +1,6 @@
 import pytest
 import torch 
-from asl_research.model import concat
+from asl_research.model.utils import concat
 
 def concat_2(tensor):
     """
