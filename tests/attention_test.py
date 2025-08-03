@@ -26,7 +26,7 @@ def test_self_attention_shape():
     q = torch.rand(batch_size, n_head, trg_sequence_size, d_model)
     k = torch.rand(batch_size, n_head, src_sequence_size, d_model)
     v = torch.rand(batch_size, n_head, src_sequence_size, d_v)
-
+    
     mask = generate_subsequent_mask(trg_sequence_size, src_sequence_size)
     attention = ScaledDotProductAttention()
     out = attention(q, k, v, mask)
