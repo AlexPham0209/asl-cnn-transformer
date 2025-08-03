@@ -3,6 +3,7 @@ import torch
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import MultiheadAttention
 from asl_research.model.attention import ScaledDotProductAttention, MultiHeadAttention
+from asl_research.model.transformer import BaseTransformer
 from asl_research.model.utils import generate_square_subsequent_mask, generate_padding_mask
 
 def make_trg_mask(trg, pad_token):
@@ -50,3 +51,28 @@ def test_source_mask_creation():
     assert src_mask.shape == (1, 1, 1, 6)
     expected_mask = torch.tensor([[[[True, True, True, False, False, False]]]])
     assert torch.equal(src_mask, expected_mask)
+
+def test_transformer_input_test(): 
+    model = BaseTransformer()
+    src = torch.tensor([
+        [1, 5, 10, 2],
+        [23, 1, 11, 0],
+    ])
+
+    trg = torch.tensor([
+        [1, 5, 10, 2, 12],
+        [23, 3, 11, 32, 0],
+    ])
+
+    out = model(src, trg)
+    assert out.shape == (2, 5, 1000)
+
+
+def test_transformer_inference():
+    corpus = [
+        "Hello my name is Joris and I was born with the name Joris.",
+        "Dit is een Nederlandse zin.",
+    ]
+
+    english = corpus[0].lower().split(' ')
+    dutch = corpus[0].lower().split(' ')

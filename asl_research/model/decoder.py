@@ -83,6 +83,8 @@ class TransformerDecoder(nn.Module):
         trg_mask: Optional[Tensor] = None,
         src_mask: Optional[Tensor] = None,
     ):
+        # Apply positional encoding onto the input tensor
+        # (batch_size, sequence_length, d_model) -> (batch_size, sequence_length, d_model)
         x = self.pe(x)
 
         for layer in self.layers:

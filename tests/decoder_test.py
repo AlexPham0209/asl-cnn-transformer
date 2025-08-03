@@ -13,4 +13,3 @@ def test_decoder_shape():
     out = decoder(x, encoded).to(DEVICE)
     assert torch.equal(torch.tensor(x.shape), torch.tensor([batch_size, trg_sequence_length, d_model]))
 
-

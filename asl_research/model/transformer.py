@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 from torch import Tensor
 import torch
 import torch.nn as nn
@@ -30,7 +31,7 @@ class BaseTransformer(nn.Module):
 
         # Decoder
         self.trg_embedding = nn.Embedding(trg_vocab_size, embedding_dim=d_model)
-        self.decoder = TransformerEncoder(
+        self.decoder = TransformerDecoder(
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
 
@@ -55,3 +56,36 @@ class BaseTransformer(nn.Module):
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
         return self.ff(trg)
+
+    def greedy_decode(
+        self, src: Tensor, src_mask: Optional[Tensor], src_vocab, trg_vocab, max_len=100
+    ):
+        self.eval()
+
+        # Convert the sequences from (sequence_size) to (batch, sequence_size)
+        src = src.unsqueeze(0)
+
+        # Feed the source sequence and its mask into the transformer's encoder
+        memory = self.encoder(self.src_embedding(src), src_mask)
+
+        # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
+        sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long)
+
+        for _ in range(max_len):
+            mask = generate_square_subsequent_mask(sequence.shape[-1], pad_token=0)
+            mask = (
+                mask.float().masked_fill(mask == 1, 0).masked_fill(mask == 0, -torch.inf)
+            )
+            
+            # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
+            out = self.decoder(self.trg_embedding(sequence), src, mask, src_mask)
+            _, next_word = torch.max(out[:, :, -1], dim=-1)
+            next_word = next_word.unsqueeze(dim=0)
+
+            # Concatenate the predicted token to the output sequence
+            sequence = torch.cat((sequence, next_word), dim=-1)
+
+            if next_word == trg_vocab["<eos>"]:
+                break
+
+        return sequence.squeeze(0)
