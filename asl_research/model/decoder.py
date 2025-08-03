@@ -31,17 +31,17 @@ class DecoderLayer(nn.Module):
         self.layer_norm_3 = nn.LayerNorm(d_model)
         self.dropout_3 = nn.Dropout(dropout)
 
-    def forward(self, x: Tensor, encoded: Optional[Tensor] = None, mask: Optional[Tensor] = None):
+    def forward(self, x: Tensor, encoded: Optional[Tensor] = None, trg_mask: Optional[Tensor] = None, src_mask: Optional[Tensor] = None):
         # Masked Self Attention
         # Shape: (batch_size, target_sequence_size, d_model)
-        x = x + self.self_attention(q=x, k=x, v=x, mask=mask)
+        x = x + self.self_attention(q=x, k=x, v=x, mask=trg_mask)
         x = self.layer_norm_1(x)
         x = self.dropout_1(x)
 
         if encoded is not None:
             # Cross Attention
             # Shape: (batch_size, target_sequence_size, d_model)
-            x = x + self.cross_attention(q=x, k=encoded, v=encoded)
+            x = x + self.cross_attention(q=x, k=encoded, v=encoded, mask=src_mask)
             x = self.layer_norm_2(x)
             x = self.dropout_2(x)
 
@@ -70,10 +70,10 @@ class TransformerDecoder(nn.Module):
             [DecoderLayer(d_model, num_heads, hidden_size, dropout) for _ in range(num_layers)]
         )
 
-    def forward(self, x: Tensor, encoded: Tensor, mask: Optional[Tensor] = None):
+    def forward(self, x: Tensor, encoded: Tensor, trg_mask: Optional[Tensor] = None, src_mask: Optional[Tensor] = None):
         x = self.pe(x)
 
         for layer in self.layers:
-            x = layer(x, encoded, mask)
+            x = layer(x, encoded, trg_mask, src_mask)
 
         return x
