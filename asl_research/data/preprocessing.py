@@ -59,4 +59,3 @@ def preprocess_data(file_name: str, name: str):
 preprocess_data("phoenix14t.pami0.train.annotations_only.gzip", "train.csv")
 preprocess_data("phoenix14t.pami0.test.annotations_only.gzip", "test.csv")
 preprocess_data("phoenix14t.pami0.dev.annotations_only.gzip", "dev.csv")
-preprocess_data("phoenix14t.pami0.dev.annotations_only.gzip", "dev.csv")
