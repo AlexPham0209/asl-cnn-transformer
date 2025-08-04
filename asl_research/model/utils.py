@@ -41,6 +41,7 @@ def concat(x: Tensor):
     # Then, reshape into (batch_size, sequence_length, d_model)
     return x.transpose(1, 2).reshape(N, length, -1)
 
+
 def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token or is in the future
@@ -60,6 +61,7 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     mask = causal_mask & padding_mask
     return mask
 
+
 def generate_padding_mask(x: Tensor, pad_token: int):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.
@@ -73,4 +75,3 @@ def generate_padding_mask(x: Tensor, pad_token: int):
 
     N, sequence_length = x.shape
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool()
-

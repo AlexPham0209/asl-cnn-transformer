@@ -30,7 +30,7 @@ def test_self_attention_different_sequence_shape():
     
     attention = ScaledDotProductAttention()
     a = attention(q, k, v)
-    b = scaled_dot_product_attention(q, k, v)
+    b = scaled_dot_product_attention(q, k, v) 
     
     assert torch.allclose(a, b)
 

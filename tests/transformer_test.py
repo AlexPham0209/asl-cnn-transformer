@@ -67,12 +67,8 @@ def test_transformer_input_test():
     out = model(src, trg)
     assert out.shape == (2, 5, 1000)
 
-
-def test_transformer_inference():
-    corpus = [
-        "Hello my name is Joris and I was born with the name Joris.",
-        "Dit is een Nederlandse zin.",
-    ]
-
-    english = corpus[0].lower().split(' ')
-    dutch = corpus[0].lower().split(' ')
+def test_transformer_greedy_decode(): 
+    model = BaseTransformer()
+    src = torch.tensor([1, 5, 10, 2])
+    out = model.greedy_decode(src)
+    print(out)
