@@ -15,7 +15,7 @@ def preprocess_data(file_name: str, name: str):
         return
 
     VIDEO_PATH = os.path.join(DATA_PATH, "videos_phoenix", "videos")
-    names = list(
+    paths = list(
         map(
             lambda x: os.path.join(VIDEO_PATH, *x.split("/")) + ".mp4",
             [key["name"] for key in annotations],
@@ -24,7 +24,7 @@ def preprocess_data(file_name: str, name: str):
     glosses = [key["gloss"] for key in annotations]
     texts = [key["text"] for key in annotations]
 
-    data = {"names": names, "glosses": glosses, "texts": texts}
+    data = {"paths": paths, "glosses": glosses, "texts": texts}
 
     df = pd.DataFrame(data)
 
@@ -43,7 +43,7 @@ def preprocess_data(file_name: str, name: str):
     df["glosses"] = df["glosses"].str.replace(r"\d+", "")
 
     # Filter by valid video path
-    existing = df["names"].astype(str).map(lambda file: os.path.exists(file))
+    existing = df["paths"].astype(str).map(lambda file: os.path.exists(file))
     df = df[existing]
 
     # Saving data frame as csv
