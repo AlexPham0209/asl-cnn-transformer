@@ -24,21 +24,14 @@ def preprocess_data(file_name: str, name: str):
     glosses = [key["gloss"] for key in annotations]
     texts = [key["text"] for key in annotations]
 
-    print(f"Names Size: {len(names)}")
-    print(f"Glosses Size: {len(glosses)}")
-    print(f"Texts Size: {len(texts)}\n")
-
     data = {"names": names, "glosses": glosses, "texts": texts}
 
     df = pd.DataFrame(data)
-    print(df.head(3))
 
     # Removing duplicate rows
-    print(f"\nPercentage of Duplicated Data:\n{df.duplicated().sum() / len(df)}\n")
     df = df.drop_duplicates()
 
     # Removing rows with missing information
-    print(f"\nPercentage of Missing Data:\n{df.isna().sum() / len(df)}\n")
     df = df.dropna()
 
     # Make text lowercase and glosses uppercase

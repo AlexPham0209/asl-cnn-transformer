@@ -22,7 +22,7 @@ class BaseTransformer(nn.Module):
     ):
         super(BaseTransformer, self).__init__()
         self.pad_token = pad_token
-
+        
         # Encoder
         self.src_embedding = nn.Embedding(src_vocab_size, embedding_dim=d_model)
         self.encoder = TransformerEncoder(
@@ -62,7 +62,7 @@ class BaseTransformer(nn.Module):
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0)
-
+        
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src), src_mask)
 
