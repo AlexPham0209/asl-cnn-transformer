@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
-
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def split(x: Tensor, num_heads: int):
     """
@@ -55,8 +55,8 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
 
     N, sequence_length = x.shape
-    causal_mask = torch.tril(torch.ones((N, 1, sequence_length, sequence_length))).bool()
-    padding_mask = generate_padding_mask(x, pad_token).bool()
+    causal_mask = torch.tril(torch.ones((N, 1, sequence_length, sequence_length))).bool().to(DEVICE)
+    padding_mask = generate_padding_mask(x, pad_token).bool().to(DEVICE)
 
     mask = causal_mask & padding_mask
     return mask
@@ -74,4 +74,4 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     """
 
     N, sequence_length = x.shape
-    return (x != pad_token).unsqueeze(1).unsqueeze(2).bool()
+    return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)

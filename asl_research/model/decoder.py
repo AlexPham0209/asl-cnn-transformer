@@ -12,7 +12,7 @@ from asl_research.model.position_wise_feed_forward import PositionWiseFeedForwar
 
 class DecoderLayer(nn.Module):
     def __init__(
-        self, d_model: int, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1
+        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1
     ):
         super(DecoderLayer, self).__init__()
 
@@ -127,5 +127,5 @@ class TransformerDecoder(nn.Module):
 
         for layer in self.layers:
             x = layer(x, encoded, trg_mask, src_mask)
-
+        
         return x

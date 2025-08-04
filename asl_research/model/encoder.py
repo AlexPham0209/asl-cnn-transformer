@@ -12,7 +12,7 @@ from asl_research.model.position_wise_feed_forward import PositionWiseFeedForwar
 
 class EncoderLayer(nn.Module):
     def __init__(
-        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
+        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1
     ):
         super(EncoderLayer, self).__init__()
 
@@ -55,7 +55,7 @@ class TransformerEncoder(nn.Module):
 
         self.pe = PositionalEncoding(d_model)
         self.layers = nn.ModuleList(
-            [EncoderLayer(d_model, hidden_size, num_heads, dropout) for _ in range(num_layers)]
+            [EncoderLayer(d_model, num_heads, hidden_size, dropout) for _ in range(num_layers)]
         )
 
     def forward(self, x: Tensor, mask: Optional[Tensor] = None):

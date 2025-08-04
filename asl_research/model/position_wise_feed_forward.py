@@ -10,7 +10,7 @@ class PositionWiseFeedForward(nn.Module):
     def __init__(self, d_model: int, hidden_size: int, dropout: float = 0.1):
         super(PositionWiseFeedForward, self).__init__()
         self.w1 = nn.Linear(in_features=d_model, out_features=hidden_size)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.w2 = nn.Linear(in_features=hidden_size, out_features=d_model)
 
     def forward(self, x: Tensor):

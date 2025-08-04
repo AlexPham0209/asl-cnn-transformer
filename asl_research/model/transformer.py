@@ -7,7 +7,6 @@ from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.utils import generate_padding_mask, generate_square_subsequent_mask
 
-
 class BaseTransformer(nn.Module):
     def __init__(
         self,
@@ -39,8 +38,8 @@ class BaseTransformer(nn.Module):
         self.ff = nn.Linear(d_model, trg_vocab_size)
 
     def forward(self, src: Tensor, trg: Tensor):
-        src_mask: Tensor = generate_padding_mask(src, self.pad_token)
-        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token)
+        src_mask: Tensor = generate_padding_mask(src, self.pad_token).to(src.device)
+        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token).to(trg.device)
 
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
@@ -66,21 +65,22 @@ class BaseTransformer(nn.Module):
         memory = self.encoder(self.src_embedding(src), src_mask)
 
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
-        sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long)
+        sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long).to(src.device)
 
         for _ in range(max_len):
-            mask = generate_square_subsequent_mask(sequence, self.pad_token)
+            trg_mask = generate_square_subsequent_mask(sequence, self.pad_token).to(src.device)
 
-            print(mask)
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
-            out = self.decoder(self.trg_embedding(sequence), memory, mask, src_mask)
+            out = self.trg_embedding(sequence)
+            out = self.ff(self.decoder(out, memory, trg_mask, src_mask))
             _, next_word = torch.max(out[:, -1], dim=-1)
-            next_word = next_word.unsqueeze(dim=0)
-
+            next_word = next_word.unsqueeze(dim=0).to(src.device)
+            
             # Concatenate the predicted token to the output sequence
-            sequence = torch.cat((sequence, next_word), dim=-1)
+            sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)
 
-            if next_word == trg_vocab["<eos>"]:
+            print(trg_vocab["<eos>"])
+            if next_word.squeeze(0).item() == trg_vocab["<eos>"]:
                 break
 
         return sequence.squeeze(0)
