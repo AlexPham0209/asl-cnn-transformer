@@ -101,8 +101,11 @@ def collate_fn(batch):
         y, batch_first=True, padding_value=2
     )
 
-LENGTH = 50
+LENGTH = 200
 EPOCHS = 250
+EXAMPLES = 100
+
+# Creating a synthetic corpus using words in the words string
 max_sentence_length = 15
 words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"
 count = Counter(words.split())
@@ -121,6 +124,7 @@ value = [
     for _ in range(LENGTH)
 ]
 
+# Creating dataloader
 dataset = TestDataset(key, value, word_to_idx, word_to_idx)
 data = DataLoader(dataset, batch_size=16, collate_fn=collate_fn)
 
@@ -135,11 +139,13 @@ transformer = BaseTransformer(
 optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
 criterion = torch.nn.CrossEntropyLoss()
 
+# Training model
 for epoch in range(EPOCHS + 1):
     loss = train_epoch(transformer, data, optimizer, criterion, epoch)
-    print(f'Total Loss: {loss}')
+    print(f'Total Loss: {loss}\n')
 
-for i in range(50):
+# Testing greedy decoding
+for i in range(EXAMPLES):
     index = random.randint(0, len(value) - 1)
     src = key[index]
     trg = value[index]

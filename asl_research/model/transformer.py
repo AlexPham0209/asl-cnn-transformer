@@ -55,7 +55,7 @@ class BaseTransformer(nn.Module):
         src: Tensor,
         src_mask: Optional[Tensor] = None,
         trg_vocab: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
-        max_len: int = 10,
+        max_len: int = 100,
     ):
         self.eval()
 
@@ -73,14 +73,16 @@ class BaseTransformer(nn.Module):
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(sequence)
-            out = self.softmax(self.ff(self.decoder(out, memory, trg_mask, src_mask)))
+            out = self.decoder(out, memory, trg_mask, src_mask)
+            out = self.softmax(self.ff(out))
+
             _, next_word = torch.max(out[:, -1], dim=-1)
             next_word = next_word.unsqueeze(dim=0).to(src.device)
     
             # Concatenate the predicted token to the output sequence
             sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)
 
-            if next_word.squeeze(0).item() == trg_vocab["<eos>"]:
+            if next_word.item() == trg_vocab["<eos>"]:
                 break
 
         return sequence.squeeze(0)
