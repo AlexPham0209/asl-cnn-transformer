@@ -36,6 +36,7 @@ class BaseTransformer(nn.Module):
 
         # Classification
         self.ff = nn.Linear(d_model, trg_vocab_size)
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, src: Tensor, trg: Tensor):
         src_mask: Tensor = generate_padding_mask(src, self.pad_token).to(src.device)
@@ -72,14 +73,13 @@ class BaseTransformer(nn.Module):
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(sequence)
-            out = self.ff(self.decoder(out, memory, trg_mask, src_mask))
+            out = self.softmax(self.ff(self.decoder(out, memory, trg_mask, src_mask)))
             _, next_word = torch.max(out[:, -1], dim=-1)
             next_word = next_word.unsqueeze(dim=0).to(src.device)
-            
+    
             # Concatenate the predicted token to the output sequence
             sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)
 
-            print(trg_vocab["<eos>"])
             if next_word.squeeze(0).item() == trg_vocab["<eos>"]:
                 break
 

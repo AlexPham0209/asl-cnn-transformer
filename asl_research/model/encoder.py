@@ -12,7 +12,7 @@ from asl_research.model.position_wise_feed_forward import PositionWiseFeedForwar
 
 class EncoderLayer(nn.Module):
     def __init__(
-        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1
+        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
     ):
         super(EncoderLayer, self).__init__()
 

@@ -101,9 +101,9 @@ def collate_fn(batch):
         y, batch_first=True, padding_value=2
     )
 
-LENGTH = 2000
-EPOCHS = 1000
-max_sentence_length = 10
+LENGTH = 50
+EPOCHS = 250
+max_sentence_length = 15
 words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"
 count = Counter(words.split())
 
@@ -122,7 +122,7 @@ value = [
 ]
 
 dataset = TestDataset(key, value, word_to_idx, word_to_idx)
-data = DataLoader(dataset, batch_size=64, collate_fn=collate_fn)
+data = DataLoader(dataset, batch_size=16, collate_fn=collate_fn)
 
 transformer = BaseTransformer(
     num_encoders=2,
@@ -132,10 +132,14 @@ transformer = BaseTransformer(
     pad_token=word_to_idx['<pad>'],
 ).to(DEVICE)
 
-optimizer = torch.optim.Adam(transformer.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9)
+optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
 criterion = torch.nn.CrossEntropyLoss()
 
-for i in range(1):
+for epoch in range(EPOCHS + 1):
+    loss = train_epoch(transformer, data, optimizer, criterion, epoch)
+    print(f'Total Loss: {loss}')
+
+for i in range(50):
     index = random.randint(0, len(value) - 1)
     src = key[index]
     trg = value[index]
@@ -144,12 +148,6 @@ for i in range(1):
     out = transformer.greedy_decode(encoded, trg_vocab=word_to_idx)
 
     print(f'Input Sentence: {src}')
-    print(f'Output Sentence: {' '.join([idx_to_words[word] for word in out.tolist()])}')
+    print(f'Output Sentence: {' '.join([idx_to_words[word] for word in out.tolist()[1:-1]])}')
     print(f'Actual Sentence: {trg}\n')
-
-for epoch in range(EPOCHS + 1):
-    loss = train_epoch(transformer, data, optimizer, criterion, epoch)
-    print(f'Total Loss: {loss}')
-
-
 
