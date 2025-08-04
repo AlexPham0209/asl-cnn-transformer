@@ -84,7 +84,7 @@ class ScaledDotProductAttention(nn.Module):
         # QK and Scores' Shape: (batch_size, num_heads, target_sequence_size, src_sequence_size)
         qk = q @ k.transpose(-2, -1)
         scores = qk / math.sqrt(k.shape[-1])
-        
+
         # Filled all elements that are either padding tokens or in the future with -torch.inf
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -torch.inf)

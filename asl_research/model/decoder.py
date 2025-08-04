@@ -127,5 +127,5 @@ class TransformerDecoder(nn.Module):
 
         for layer in self.layers:
             x = layer(x, encoded, trg_mask, src_mask)
-        
+
         return x

@@ -18,5 +18,5 @@ if __name__ == "__main__":
 
     # Extract downloaded dataset
     print("Extracting Dataset...")
-    with zipfile.ZipFile(os.path.join(DATA_PATH, "UCI HAR Dataset.zip"), 'rb') as zip_ref:
+    with zipfile.ZipFile(os.path.join(DATA_PATH, "UCI HAR Dataset.zip"), "rb") as zip_ref:
         zip_ref.extractall(DATA_PATH)

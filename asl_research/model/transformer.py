@@ -7,6 +7,7 @@ from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.utils import generate_padding_mask, generate_square_subsequent_mask
 
+
 class BaseTransformer(nn.Module):
     def __init__(
         self,
@@ -78,7 +79,7 @@ class BaseTransformer(nn.Module):
 
             _, next_word = torch.max(out[:, -1], dim=-1)
             next_word = next_word.unsqueeze(dim=0).to(src.device)
-    
+
             # Concatenate the predicted token to the output sequence
             sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)
 
