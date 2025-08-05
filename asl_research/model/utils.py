@@ -98,10 +98,19 @@ def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = Non
     out = indices <= lengths - 1
     return out.unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
-def pad_video(x: Tensor, length: int = 10, padding: float = 0):
+def pad_video_with_value(x: Tensor, length: int = 10, padding: float = 0):
     T, C, H, W = x.shape
     out = torch.zeros(length, C, H, W)
     out[:T] = x
     return out
 
+def pad_video_with_last_frame(x: Tensor, length: int = 10):
+    T = x.shape[0]
+    out = x[-1].repeat(length, 1, 1, 1)
+    out[:T] = x
+    return out
+
+# T, C, H, W = 5, 3, 4, 4
+# tensor = torch.arange(0, T * C * H * W).reshape(T, C, H, W)
+# print(pad_video_with_last_frame(tensor, 10))
 
