@@ -10,6 +10,7 @@ from asl_research.model.transformer import BaseTransformer
 import random
 from torch.nn.modules.loss import _Loss
 from torch.nn.utils.rnn import pad_sequence
+from torcheval.metrics.functional import word_error_rate
 
 # Train on the GPU if possible
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -101,59 +102,72 @@ def collate_fn(batch):
         y, batch_first=True, padding_value=2
     )
 
-LENGTH = 200
-EPOCHS = 250
-EXAMPLES = 100
 
-# Creating a synthetic corpus using words in the words string
-max_sentence_length = 15
-words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"
-count = Counter(words.split())
+def test_transformer_training():
+    LENGTH = 200
+    EPOCHS = 250
+    EXAMPLES = 100
 
-vocab = ['<sos>', '<eos>', '<pad>'] + sorted(count.keys(), key=lambda key: count[key])
-idx_to_words = {id:word for id, word in enumerate(vocab)}
-word_to_idx = {word:id for id, word in enumerate(vocab)}
+    # Creating a synthetic corpus using words in the words string
+    max_sentence_length = 15
+    words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"
+    count = Counter(words.split())
 
-key = [
-    " ".join(random.choices(population=vocab[3:], k=random.randint(5, max_sentence_length)))
-    for _ in range(LENGTH)
-]
+    vocab = ['<sos>', '<eos>', '<pad>'] + sorted(count.keys(), key=lambda key: count[key])
+    idx_to_words = {id:word for id, word in enumerate(vocab)}
+    word_to_idx = {word:id for id, word in enumerate(vocab)}
 
-value = [
-    " ".join(random.choices(population=vocab[3:], k=random.randint(5, max_sentence_length)))
-    for _ in range(LENGTH)
-]
+    key = [
+        " ".join(random.choices(population=vocab[3:], k=random.randint(5, max_sentence_length)))
+        for _ in range(LENGTH)
+    ]
 
-# Creating dataloader
-dataset = TestDataset(key, value, word_to_idx, word_to_idx)
-data = DataLoader(dataset, batch_size=16, collate_fn=collate_fn)
+    value = [
+        " ".join(random.choices(population=vocab[3:], k=random.randint(5, max_sentence_length)))
+        for _ in range(LENGTH)
+    ]
 
-transformer = BaseTransformer(
-    num_encoders=2,
-    num_decoders=2,
-    src_vocab_size=len(word_to_idx),
-    trg_vocab_size=len(word_to_idx),
-    pad_token=word_to_idx['<pad>'],
-).to(DEVICE)
+    # Creating dataloader
+    dataset = TestDataset(key, value, word_to_idx, word_to_idx)
+    data = DataLoader(dataset, batch_size=16, collate_fn=collate_fn)
 
-optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
-criterion = torch.nn.CrossEntropyLoss()
+    transformer = BaseTransformer(
+        num_encoders=2,
+        num_decoders=2,
+        src_vocab_size=len(word_to_idx),
+        trg_vocab_size=len(word_to_idx),
+        pad_token=word_to_idx['<pad>'],
+    ).to(DEVICE)
 
-# Training model
-for epoch in range(EPOCHS + 1):
-    loss = train_epoch(transformer, data, optimizer, criterion, epoch)
-    print(f'Total Loss: {loss}\n')
+    optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
+    criterion = torch.nn.CrossEntropyLoss()
 
-# Testing greedy decoding
-for i in range(EXAMPLES):
-    index = random.randint(0, len(value) - 1)
-    src = key[index]
-    trg = value[index]
+
+    # Training model
+    for epoch in range(EPOCHS + 1):
+        loss = train_epoch(transformer, data, optimizer, criterion, epoch)
+        print(f'Total Loss: {loss}\n')
+
+    preds = []
+    targets = []
+
+    # Testing greedy decoding
+    for i in range(EXAMPLES):
+        index = random.randint(0, len(value) - 1)
+        src = key[index]
+        trg = value[index]
+        
+        encoded = torch.tensor([word_to_idx[word] for word in ["<sos>"] + src.split() + ["<eos>"]]).to(DEVICE)
+        out = transformer.greedy_decode(encoded, trg_vocab=word_to_idx)
+
+        print(f'Input Sentence: {src}')
+        print(f'Output Sentence: {' '.join([idx_to_words[word] for word in out.tolist()[1:-1]])}')
+        print(f'Actual Sentence: {trg}\n')
+        
+        preds.append(' '.join([idx_to_words[word] for word in out.tolist()[1:-1]]))
+        targets.append(trg)
+
+    wer = word_error_rate(preds, targets)
+    print(f"WER: {wer}")
     
-    encoded = torch.tensor([word_to_idx[word] for word in ["<sos>"] + src.split() + ["<eos>"]]).to(DEVICE)
-    out = transformer.greedy_decode(encoded, trg_vocab=word_to_idx)
-
-    print(f'Input Sentence: {src}')
-    print(f'Output Sentence: {' '.join([idx_to_words[word] for word in out.tolist()[1:-1]])}')
-    print(f'Actual Sentence: {trg}\n')
-
+    assert wer <= 0.05
