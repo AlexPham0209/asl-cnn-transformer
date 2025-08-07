@@ -67,8 +67,12 @@ class PhoenixDataset(Dataset):
         video_data = self.transform(video_data)
         
         return video_data
-        
+    
+    @staticmethod
+    def collate_fn(batch: list):
+        pass
 
+    
 
 videos = []
 train = pd.read_csv("data\\processed\\phoenixweather2014t\\train.csv")

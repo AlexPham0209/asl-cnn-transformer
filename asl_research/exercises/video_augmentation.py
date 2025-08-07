@@ -16,9 +16,7 @@ from torchvision.transforms import (
     ColorJitter,
 )
 
-from torchvision.transforms.v2 import (
-    UniformTemporalSubsample
-)
+from torchvision.transforms.v2 import UniformTemporalSubsample
 
 import cv2
 import pandas as pd
@@ -54,4 +52,6 @@ for path in tqdm(paths[:5], desc="Loading Videos"):
     video_data = transform(video_data)
 
     video_data = video_data.permute(0, 2, 3, 1)
-    torchvision.io.write_video(os.path.join('data', 'test_video', f'test_video{i}.mp4'), video_data, 24)
+    torchvision.io.write_video(
+        os.path.join("data", "test_video", f"test_video{i}.mp4"), video_data, 24
+    )
