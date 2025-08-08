@@ -38,7 +38,7 @@ class EncoderLayer(nn.Module):
         x = x + self.ff(x)
         x = self.layer_norm_2(x)
         x = self.dropout_2(x)
-
+        
         return x
 
 

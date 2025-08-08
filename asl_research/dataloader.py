@@ -27,9 +27,6 @@ from tqdm import tqdm
 import pandas as pd
 import json
 
-mean = [0.45, 0.45, 0.45]
-std = [0.225, 0.225, 0.225]
-
 
 class PhoenixDataset(Dataset):
     def __init__(
@@ -116,14 +113,3 @@ class PhoenixDataset(Dataset):
 
         return videos, gloss_sequences, gloss_lengths, sentences
 
-
-dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
-dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
-
-videos, gloss_sequences, gloss_lengths, sentences = next(iter(dataloader))
-print(videos.shape)
-print(gloss_sequences)
-print(gloss_lengths)
-print(sentences)
-
-gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()

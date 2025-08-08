@@ -85,16 +85,16 @@ class Conv2DBlock(nn.Module):
         Convolution Block for the spatial embedding layer
 
         Args:
-            x: Batch of videos (batch_size, in_channels, depth, height, width)
+            x: Batch of videos (batch_size, time, in_channels, height, width)
 
         Returns:
-            (Tensor): Tensor of shape (batch_size, out_channels, depth_out, height_out, width_out)
+            (Tensor): Tensor of shape (batch_size, time, out_channels, height_out, width_out)
         """
 
         # Transpose the time and the channel dimensions
         # Then, combine the batch and
-        N, C, T, W, H = x.shape
-        x = x.transpose(1, 2).reshape(-1, C, W, H)
+        N, T, C, W, H = x.shape
+        x = x.reshape(-1, C, W, H)
 
         x = self.conv(x)
         x = self.batch_norm(x)
@@ -102,7 +102,7 @@ class Conv2DBlock(nn.Module):
         x = self.max_pool(x)
 
         # Restore the original dimensions
-        return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1]).transpose(1, 2)
+        return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
 
 
 class Spatial2DEmbedding(nn.Module):
@@ -119,6 +119,9 @@ class Spatial2DEmbedding(nn.Module):
             nn.Linear(in_features=2304, out_features=512), nn.ReLU(), nn.Dropout(p=dropout)
         )
 
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=dropout)
+
         self.ff_2 = nn.Linear(512, d_model)
 
     def forward(self, x: Tensor):
@@ -126,17 +129,19 @@ class Spatial2DEmbedding(nn.Module):
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
 
         Args:
-        x: Batch of videos (batch_size, in_channels, time, 224, 224)
+        x: Batch of videos (batch_size, time, in_channels, 224, 224)
 
         Returns:
             (Tensor): Tensor of shape (batch_size, time_out, depth_out * height_out * width_out)
         """
         x = self.conv(x)
-        N, _, T, _, _ = x.shape
-
-        # Reshapes the tensor from (batch_size, height)
-        x = x.transpose(1, 2).reshape(N, T, -1)
+        N, T, _, _, _ = x.shape
+        
+        # Reshapes the tensor into (batch_size, time, c * h * w)
+        x = x.reshape(N, T, -1)
         x = self.ff_1(x)
-        x = self.ff_2(x)
+        x = self.relu(x)
+        x = self.dropout(x)
 
+        x = self.ff_2(x)
         return x
