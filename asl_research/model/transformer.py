@@ -50,7 +50,7 @@ class BaseTransformer(nn.Module):
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
         return self.ff(trg)
-
+    
     def greedy_decode(
         self,
         src: Tensor,
@@ -65,7 +65,7 @@ class BaseTransformer(nn.Module):
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src), src_mask)
-        
+
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long).to(src.device)
 

@@ -103,7 +103,7 @@ class Conv2DBlock(nn.Module):
 
         # Restore the original dimensions
         return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
-        
+
 
 class Spatial2DEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):

@@ -18,45 +18,64 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
 
-def train(config):
+def train(config: dict):
     model_config = config["model"]
-    training_config = config["train"]
+    training_config = config["training"]
 
     # Creating dataset and getting gloss and word vocabulary dictionaries
     dataset = PhoenixDataset(
-        root_dir="data\\processed\\phoenixweather2014t", num_frames=60, target_size=(224, 224)
+        root_dir="data\\processed\\phoenixweather2014t",
+        num_frames=training_config["num_frames"],
+        target_size=(224, 224),
     )
 
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
 
     # Splitting dataset into training, validation, and testing sets
-    generator = torch.Generator().manual_seed(29)
+    generator = torch.Generator().manual_seed(training_config["seed"])
     train_set, valid_set, test_set = random_split(
-        dataset=dataset, lengths=[0.8, 0.1, 0.1], generator=generator
+        dataset=dataset, lengths=training_config["split"], generator=generator
     )
 
-    train_dl = DataLoader(train_set, batch_size=16, shuffle=True)
-    valid_dl = DataLoader(valid_set, batch_size=16, shuffle=True)
-    test_dl = DataLoader(test_set, batch_size=16, shuffle=True)
+    train_dl = DataLoader(
+        train_set,
+        batch_size=training_config["batch_size"],
+        shuffle=True,
+        collate_fn=PhoenixDataset.collate_fn,
+    )
+    valid_dl = DataLoader(
+        valid_set,
+        batch_size=training_config["batch_size"],
+        shuffle=True,
+        collate_fn=PhoenixDataset.collate_fn,
+    )
+    test_dl = DataLoader(
+        test_set,
+        batch_size=training_config["batch_size"],
+        shuffle=True,
+        collate_fn=PhoenixDataset.collate_fn,
+    )
 
     # Creating the model
     assert "<pad>" in gloss_to_idx
     assert "<pad>" in word_to_idx
+
     model = ASLModel(
-        num_encoders=2,
-        num_decoders=2,
-        trg_vocab_size=len(word_to_idx),
+        num_encoders=model_config["num_encoders"],
+        num_decoders=model_config["num_decoders"],
+        gloss_vocab_size=len(gloss_to_idx),
+        word_vocab_size=len(word_to_idx),
         gloss_pad_token=gloss_to_idx["<pad>"],
         word_pad_token=word_to_idx["<pad>"],
-        d_model=512,
-        num_heads=8,
-        dropout=0.1,
+        d_model=model_config["d_model"],
+        num_heads=model_config["num_heads"],
+        dropout=model_config["dropout"],
     ).to(DEVICE)
 
     ctc_loss = nn.CTCLoss().to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(config["lr"]))
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
     early_stopping = EarlyStopping(patience=3, delta=0.1)
 
@@ -64,9 +83,9 @@ def train(config):
     train_loss_history = []
     valid_loss_history = []
 
-    epochs = config["epochs"]
-    save_path = config["save_path"]
-    load_path = config["load_path"]
+    epochs = training_config["epochs"]
+    save_path = training_config["save_path"]
+    load_path = training_config["load_path"]
 
     curr_epoch = 1
 
@@ -81,32 +100,32 @@ def train(config):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
 
-    valid_loss = validate(model, valid_dl, criterion)
-    print(f"Valid Average loss: {valid_loss:>8f}\n")
+    # valid_loss = validate(model, valid_dl, criterion)
+    # print(f"Valid Average loss: {valid_loss:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
         train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
-        valid_loss = validate(model, valid_dl, criterion)
+        valid_loss = 0
 
-        train_loss_history.append(train_loss)
-        valid_loss_history.append(valid_loss)
+        # train_loss_history.append(train_loss)
+        # valid_loss_history.append(valid_loss)
 
-        if valid_loss < best_loss:
-            best_loss = valid_loss
-            print("New best model, saving...")
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "criterion": criterion,
-                    "best_loss": best_loss,
-                    "train_loss_history": train_loss_history,
-                    "valid_loss_history": valid_loss_history,
-                },
-                os.path.join(save_path, "best.pt"),
-            )
+        # if valid_loss < best_loss:
+        #     best_loss = valid_loss
+        #     print("New best model, saving...")
+        #     torch.save(
+        #         {
+        #             "epoch": epoch,
+        #             "model_state_dict": model.state_dict(),
+        #             "optimizer_state_dict": optimizer.state_dict(),
+        #             "criterion": criterion,
+        #             "best_loss": best_loss,
+        #             "train_loss_history": train_loss_history,
+        #             "valid_loss_history": valid_loss_history,
+        #         },
+        #         os.path.join(save_path, "best.pt"),
+        #     )
 
         total_time = time.time() - start_time
         print(f"\nEpoch Time: {total_time:.1f} seconds")
@@ -150,18 +169,24 @@ def train_epoch(
 
         optimizer.zero_grad()
 
-        # Should output two tensors 
-        encoder_out, decoder_out = model(videos).to(DEVICE)
+        # Should output the encoder output
+        # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
+        # decoder_out: (batch_size, sentence_length, word_vocab_size)
+        encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
-        encoder_out = log_softmax(out, dim=-1)
-        T, N, C = out.shape
-
+        # Encoder loss
+        encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
+        T, N, _ = encoder_out.shape
         input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        target_lengths = torch.full(size=(N,), fill_value=label.shape[-1]).to(DEVICE)
+        gloss_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
-        loss = ctc_loss(out, label, input_lengths, target_lengths) + cross_entropy_loss()
-        losses += loss.item()
-
+        # Decoder loss
+        actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+        expected = sentences[:, 1:].reshape(-1)
+        word_loss = cross_entropy_loss(actual, expected)
+        
+        # Calculating the joint loss
+        loss = gloss_loss + word_loss
         loss.backward()
         optimizer.step()
 

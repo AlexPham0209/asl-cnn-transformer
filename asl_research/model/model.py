@@ -15,8 +15,8 @@ class ASLModel(nn.Module):
         self,
         num_encoders: int = 2,
         num_decoders: int = 2,
-        src_vocab_size: int = 1000,
-        trg_vocab_size: int = 1000,
+        gloss_vocab_size: int = 1000,
+        word_vocab_size: int = 1000,
         gloss_pad_token: int = 1,
         word_pad_token: int = 2,
         d_model: int = 512,
@@ -28,23 +28,22 @@ class ASLModel(nn.Module):
         self.word_pad_token = word_pad_token
 
         # Encoder
-        self.src_embedding = Spatial2DEmbedding(d_model=d_model)
+        self.src_embedding = Spatial2DEmbedding(d_model=d_model, dropout=dropout)
         self.encoder = TransformerEncoder(
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
-        self.ff_1 = nn.Linear(d_model, src_vocab_size)
+        self.ff_1 = nn.Linear(d_model, gloss_vocab_size)
 
         # Decoder
-        self.trg_embedding = nn.Embedding(trg_vocab_size, embedding_dim=d_model)
+        self.trg_embedding = nn.Embedding(word_vocab_size, embedding_dim=d_model)
         self.decoder = TransformerDecoder(
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
-        self.ff_2 = nn.Linear(d_model, trg_vocab_size)
-
+        self.ff_2 = nn.Linear(d_model, word_vocab_size)
 
     def forward(self, src: Tensor, trg: Tensor):
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
-        
+
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
 
@@ -55,7 +54,7 @@ class ASLModel(nn.Module):
         trg = self.ff_2(trg)
 
         return src, trg
-    
+
     def greedy_decode(
         self,
         src: Tensor,
@@ -74,7 +73,9 @@ class ASLModel(nn.Module):
         sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long).to(src.device)
 
         for _ in range(max_len):
-            trg_mask = generate_square_subsequent_mask(sequence, self.word_pad_token).to(src.device)
+            trg_mask = generate_square_subsequent_mask(sequence, self.word_pad_token).to(
+                src.device
+            )
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(sequence)
@@ -89,8 +90,5 @@ class ASLModel(nn.Module):
 
             if next_word.item() == trg_vocab["<eos>"]:
                 break
-        
+
         return sequence.squeeze(0)
-
-
-
