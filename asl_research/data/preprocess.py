@@ -88,7 +88,7 @@ df = df[np.abs(stats.zscore(df['frames'])) < 3]
 gloss_count = Counter(itertools.chain.from_iterable([sequence.split() for sequence in df['glosses']]))
 word_count = Counter(itertools.chain.from_iterable([sentence.split() for sentence in df['texts']]))
 
-gloss_list = sorted(gloss_count.keys(), key=lambda x: gloss_count[x], reverse=True)
+gloss_list = ["-", "<pad>"] + sorted(gloss_count.keys(), key=lambda x: gloss_count[x], reverse=True)
 word_list = ["<sos>", "<eos>", "<pad>"] + sorted(word_count.keys(), key=lambda x: word_count[x], reverse=True)
 
 vocab = {
@@ -98,6 +98,6 @@ vocab = {
 
 # Saving vocab and dataset
 with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:
-    json.dump(vocab, f)
+    json.dump(vocab, f, indent=4)
 
 df.to_csv(os.path.join(PROCESSED_PATH, 'dataset.csv'), index=False)

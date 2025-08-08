@@ -141,7 +141,7 @@ def test_transformer_training():
 
     optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
     criterion = torch.nn.CrossEntropyLoss()
-
+    
 
     # Training model
     for epoch in range(EPOCHS + 1):
