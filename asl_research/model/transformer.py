@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.decoder import TransformerDecoder
-from asl_research.model.utils import generate_padding_mask, generate_square_subsequent_mask
+from asl_research.utils.utils import generate_padding_mask, generate_square_subsequent_mask
 
 
 class BaseTransformer(nn.Module):
@@ -65,7 +65,7 @@ class BaseTransformer(nn.Module):
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src), src_mask)
-
+        
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long).to(src.device)
 

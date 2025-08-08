@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
-from asl_research.model.utils import concat, split
+from asl_research.utils.utils import concat, split
 
 
 class MultiHeadAttention(nn.Module):

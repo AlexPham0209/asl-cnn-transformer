@@ -94,7 +94,7 @@ class Conv2DBlock(nn.Module):
         # Transpose the time and the channel dimensions
         # Then, combine the batch and
         N, T, C, W, H = x.shape
-        x = x.reshape(-1, C, W, H)
+        x = x.reshape(N * T, C, W, H)
 
         x = self.conv(x)
         x = self.batch_norm(x)
@@ -103,7 +103,7 @@ class Conv2DBlock(nn.Module):
 
         # Restore the original dimensions
         return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
-
+        
 
 class Spatial2DEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):
@@ -136,7 +136,7 @@ class Spatial2DEmbedding(nn.Module):
         """
         x = self.conv(x)
         N, T, _, _, _ = x.shape
-        
+
         # Reshapes the tensor into (batch_size, time, c * h * w)
         x = x.reshape(N, T, -1)
         x = self.ff_1(x)

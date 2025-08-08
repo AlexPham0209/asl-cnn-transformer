@@ -4,7 +4,8 @@ from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import MultiheadAttention
 from asl_research.model.attention import ScaledDotProductAttention, MultiHeadAttention
 from asl_research.model.transformer import BaseTransformer
-from asl_research.model.utils import generate_square_subsequent_mask, generate_padding_mask
+from asl_research.utils.utils import generate_square_subsequent_mask, generate_padding_mask
+from asl_research.model.model import ASLModel
 
 def make_trg_mask(trg, pad_token):
     trg_pad_mask = (trg != pad_token).unsqueeze(1).unsqueeze(2)
@@ -67,8 +68,18 @@ def test_transformer_input_test():
     out = model(src, trg)
     assert out.shape == (2, 5, 1000)
 
+def test_asl_model_input_test(): 
+    model = ASLModel()
+    src = torch.randn(1, 20, 3, 224, 224)
+    trg = torch.tensor([[1, 2, 3, 4, 5]])
+
+    src, trg = model(src, trg)
+    assert src.shape == (1, 20, 1000)
+    assert trg.shape == (1, 5, 1000)
+
 def test_transformer_greedy_decode(): 
     model = BaseTransformer()
     src = torch.tensor([1, 5, 10, 2])
     out = model.greedy_decode(src)
     print(out)
+

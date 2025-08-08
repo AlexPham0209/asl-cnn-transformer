@@ -74,7 +74,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
         x (Tensor): Original tensor (batch_size, sequence_size)
 
     Returns:
-        Tensor: Masking boolean tensor (batch_size, 1, sequence_size, sequence_size)
+        Tensor: Masking boolean tensor (batch_size, 1, 1, sequence_size)
     """
 
     N, sequence_length = x.shape

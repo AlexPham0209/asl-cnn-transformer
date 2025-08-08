@@ -3,7 +3,7 @@ import torch
 from torch.nn.functional import scaled_dot_product_attention
 from torch.nn import MultiheadAttention
 from asl_research.model.attention import ScaledDotProductAttention, MultiHeadAttention
-from asl_research.model.utils import generate_square_subsequent_mask, generate_padding_mask
+from asl_research.utils.utils import generate_square_subsequent_mask, generate_padding_mask
 
 def test_self_attention_equal():
     batch_size, n_head, sequence_size, d_model = 16, 8, 10, 64

@@ -112,4 +112,3 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences
-
