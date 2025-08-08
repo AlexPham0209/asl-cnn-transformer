@@ -7,10 +7,12 @@ import cv2
 import itertools
 import numpy as np
 from scipy import stats
+import json
 
 
-DATA_PATH = os.path.join("data", "processed", "phoenixweather2014t")
-VIDEO_PATH = os.path.join(DATA_PATH, "videos_phoenix", "videos")
+EXTERNAL_PATH = os.path.join("data", "external", "phoenixweather2014t")
+PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
+VIDEO_PATH = os.path.join(EXTERNAL_PATH, "videos_phoenix", "videos")
 
 def with_opencv(filename):
     video = cv2.VideoCapture(filename)
@@ -27,13 +29,13 @@ def video_path(set):
     )
 
 # Load dataset
-with gzip.open(os.path.join(DATA_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb") as f:
+with gzip.open(os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb") as f:
     train = pickle.load(f)
 
-with gzip.open(os.path.join(DATA_PATH, "phoenix14t.pami0.dev.annotations_only.gzip"), "rb") as f:
+with gzip.open(os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.dev.annotations_only.gzip"), "rb") as f:
     dev = pickle.load(f)
 
-with gzip.open(os.path.join(DATA_PATH, "phoenix14t.pami0.test.annotations_only.gzip"), "rb") as f:
+with gzip.open(os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.test.annotations_only.gzip"), "rb") as f:
     test = pickle.load(f)
 
 # Getting gloss sequences and sentences from all samples
@@ -74,24 +76,28 @@ df["glosses"] = df["glosses"].str.replace(r"\d+", "")
 
 # Removing invalid video paths
 df = df.loc[df["paths"].astype(str).map(lambda file: os.path.exists(os.path.join(VIDEO_PATH, file)))]
-gloss_count = Counter(itertools.chain.from_iterable([sequence.split() for sequence in glosses]))
 
 # Creating new columns for the number of frames
-glosses_length = list(map(lambda x: len(x.split()), list(df['glosses'])))
-sentences_length = list(map(lambda x: len(x.split()), list(df['texts'])))
 frames = list(map(lambda x: with_opencv(x), list([os.path.join(VIDEO_PATH, path) for path in list(df['paths'])])))
-
-df['sentences_length'] = sentences_length
-df['glosses_length'] = glosses_length
 df['frames'] = frames
 
 # Filter outliers outside of 3 standard deviations
 df = df[np.abs(stats.zscore(df['frames'])) < 3]
 
+# Create vocabulary for gloss sequences and words
+gloss_count = Counter(itertools.chain.from_iterable([sequence.split() for sequence in df['glosses']]))
+word_count = Counter(itertools.chain.from_iterable([sentence.split() for sentence in df['texts']]))
 
-df.to_csv(os.path.join(DATA_PATH, 'dataset.csv'), index=False)
+gloss_list = sorted(gloss_count.keys(), key=lambda x: gloss_count[x], reverse=True)
+word_list = ["<sos>", "<eos>", "<pad>"] + sorted(word_count.keys(), key=lambda x: word_count[x], reverse=True)
 
-# Preprocess the validation, training and testing sets
-# preprocess_data("phoenix14t.pami0.train.annotations_only.gzip", "train.csv")
-# preprocess_data("phoenix14t.pami0.test.annotations_only.gzip", "test.csv")
-# preprocess_data("phoenix14t.pami0.dev.annotations_only.gzip", "dev.csv")
+vocab = {
+    "glosses": gloss_list,
+    "words": word_list
+}
+
+# Saving vocab and dataset
+with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:
+    json.dump(vocab, f)
+
+df.to_csv(os.path.join(PROCESSED_PATH, 'dataset.csv'), index=False)
