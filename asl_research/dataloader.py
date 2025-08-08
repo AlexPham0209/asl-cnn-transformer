@@ -19,9 +19,7 @@ from torchvision.transforms import (
     ColorJitter,
 )
 
-from torchvision.transforms.v2 import (
-    UniformTemporalSubsample
-)
+from torchvision.transforms.v2 import UniformTemporalSubsample
 
 import cv2
 import pandas as pd
@@ -41,9 +39,9 @@ class PhoenixDataset(Dataset):
         target_size: tuple = (224, 224),
     ):
         super().__init__()
-        self.dataset_path = os.path.join(root_dir, 'dataset.csv')
-        self.vocab_path = os.path.join(root_dir, 'vocab.json')
-        self.video_dir = os.path.join(root_dir, 'videos_phoenix', 'videos')
+        self.dataset_path = os.path.join(root_dir, "dataset.csv")
+        self.vocab_path = os.path.join(root_dir, "vocab.json")
+        self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
 
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
@@ -52,23 +50,25 @@ class PhoenixDataset(Dataset):
         self.df = pd.read_csv(self.dataset_path)
         self.vocab = json.load(open(self.vocab_path))
 
-        self.glosses = self.vocab['glosses']
-        self.words = self.vocab['words']
+        self.glosses = self.vocab["glosses"]
+        self.words = self.vocab["words"]
 
-        self.gloss_to_idx = {gloss:i for i, gloss in enumerate(self.glosses)}
-        self.idx_to_gloss = {i:gloss for i, gloss in enumerate(self.glosses)}
+        self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
+        self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
 
-        self.word_to_idx = {word:i for i, word in enumerate(self.words)}
-        self.idx_to_word = {i:word for i, word in enumerate(self.words)}
+        self.word_to_idx = {word: i for i, word in enumerate(self.words)}
+        self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
-        self.transform = Compose([
-            Lambda(lambda x: x/255.0),
-            UniformTemporalSubsample(num_frames),
-            Resize((256, 256)),
-            RandomRotation(5),
-            ColorJitter(0.5, 0.5, 0.1, 0.1),
-            RandomCrop(target_size),
-        ])
+        self.transform = Compose(
+            [
+                Lambda(lambda x: x / 255.0),
+                UniformTemporalSubsample(num_frames),
+                Resize((256, 256)),
+                RandomRotation(5),
+                ColorJitter(0.5, 0.5, 0.1, 0.1),
+                RandomCrop(target_size),
+            ]
+        )
 
     def __len__(self):
         return len(self.df)
@@ -76,9 +76,9 @@ class PhoenixDataset(Dataset):
     def __getitem__(self, index):
         item = self.df.iloc[index]
 
-        path = os.path.join(self.video_dir, item['paths'])
-        glosses = item['glosses']
-        sentence = item['texts']
+        path = os.path.join(self.video_dir, item["paths"])
+        glosses = item["glosses"]
+        sentence = item["texts"]
 
         gloss_tokens = torch.tensor([self.gloss_to_idx[gloss] for gloss in glosses.split()])
         word_tokens = torch.tensor([self.word_to_idx[word] for word in sentence.split()])
@@ -87,12 +87,18 @@ class PhoenixDataset(Dataset):
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         video_data = self.transform(video_data)
-        
-        return video_data, gloss_tokens, word_tokens, self.gloss_to_idx['<pad>'], self.word_to_idx['<pad>']
 
-    def get_vocab(self): 
+        return (
+            video_data,
+            gloss_tokens,
+            word_tokens,
+            self.gloss_to_idx["<pad>"],
+            self.word_to_idx["<pad>"],
+        )
+
+    def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
-    
+
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
@@ -102,14 +108,16 @@ class PhoenixDataset(Dataset):
         videos = torch.stack(videos, dim=0)
 
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
-        gloss_sequences = pad_sequence(gloss_sequences, batch_first=True, padding_value=gloss_pad_token)
+        gloss_sequences = pad_sequence(
+            gloss_sequences, batch_first=True, padding_value=gloss_pad_token
+        )
 
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-        
+
         return videos, gloss_sequences, gloss_lengths, sentences
 
 
-dataset = PhoenixDataset(root_dir='data\\processed\\phoenixweather2014t')
+dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
 dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
 
 videos, gloss_sequences, gloss_lengths, sentences = next(iter(dataloader))
