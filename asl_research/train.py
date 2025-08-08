@@ -72,6 +72,8 @@ def train(config: dict):
         dropout=model_config["dropout"],
     ).to(DEVICE)
 
+    print(model_config["dropout"])
+
     ctc_loss = nn.CTCLoss().to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
@@ -108,24 +110,24 @@ def train(config: dict):
         train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
         valid_loss = 0
 
-        # train_loss_history.append(train_loss)
-        # valid_loss_history.append(valid_loss)
+        train_loss_history.append(train_loss)
+        valid_loss_history.append(valid_loss)
 
-        # if valid_loss < best_loss:
-        #     best_loss = valid_loss
-        #     print("New best model, saving...")
-        #     torch.save(
-        #         {
-        #             "epoch": epoch,
-        #             "model_state_dict": model.state_dict(),
-        #             "optimizer_state_dict": optimizer.state_dict(),
-        #             "criterion": criterion,
-        #             "best_loss": best_loss,
-        #             "train_loss_history": train_loss_history,
-        #             "valid_loss_history": valid_loss_history,
-        #         },
-        #         os.path.join(save_path, "best.pt"),
-        #     )
+        if valid_loss < best_loss:
+            best_loss = valid_loss
+            print("New best model, saving...")
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "criterion": criterion,
+                    "best_loss": best_loss,
+                    "train_loss_history": train_loss_history,
+                    "valid_loss_history": valid_loss_history,
+                },
+                os.path.join(save_path, "best.pt"),
+            )
 
         total_time = time.time() - start_time
         print(f"\nEpoch Time: {total_time:.1f} seconds")
@@ -184,7 +186,7 @@ def train_epoch(
         actual = decoder_out.reshape(-1, decoder_out.shape[-1])
         expected = sentences[:, 1:].reshape(-1)
         word_loss = cross_entropy_loss(actual, expected)
-        
+
         # Calculating the joint loss
         loss = gloss_loss + word_loss
         loss.backward()

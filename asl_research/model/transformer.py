@@ -50,7 +50,7 @@ class BaseTransformer(nn.Module):
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
         return self.ff(trg)
-    
+
     def greedy_decode(
         self,
         src: Tensor,
@@ -60,16 +60,23 @@ class BaseTransformer(nn.Module):
     ):
         self.eval()
 
-        # Convert the sequences from (sequence_size) to (batch, sequence_size)
-        src = src.unsqueeze(0)
+        # # Convert the sequences from (sequence_size) to (batch, sequence_size)
+        # src = src.unsqueeze(0)
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src), src_mask)
 
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
-        sequence = torch.ones(1, 1).fill_(trg_vocab["<sos>"]).type(torch.long).to(src.device)
+        sequence = (
+            torch.ones(src.shape[0], max_len)
+            .fill_(trg_vocab["<pad>"])
+            .type(torch.long)
+            .to(src.device)
+        )
+        sequence[:, 0] = trg_vocab["<sos>"]
 
-        for _ in range(max_len):
+        for i in range(1, max_len):
+            # out = sequence[:, :i]
             trg_mask = generate_square_subsequent_mask(sequence, self.pad_token).to(src.device)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
@@ -77,13 +84,10 @@ class BaseTransformer(nn.Module):
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = self.softmax(self.ff(out))
 
-            _, next_word = torch.max(out[:, -1], dim=-1)
-            next_word = next_word.unsqueeze(dim=0).to(src.device)
+            _, next_word = torch.max(out[:, i - 1], dim=-1)
+            next_word = next_word.to(src.device)
 
             # Concatenate the predicted token to the output sequence
-            sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)
+            sequence[:, i] = next_word
 
-            if next_word.item() == trg_vocab["<eos>"]:
-                break
-
-        return sequence.squeeze(0)
+        return sequence

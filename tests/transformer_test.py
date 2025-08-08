@@ -79,7 +79,7 @@ def test_asl_model_input_test():
 
 def test_transformer_greedy_decode(): 
     model = BaseTransformer()
-    src = torch.tensor([1, 5, 10, 2])
+    src = torch.tensor([[1, 5, 10, 2]])
     out = model.greedy_decode(src)
     print(out)
 

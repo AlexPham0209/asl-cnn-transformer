@@ -58,13 +58,14 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
+        src_vocab: dict = {"-": 0, "<pad>": 1},
         trg_vocab: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
         max_len: int = 100,
     ):
         self.eval()
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
-        src = src.unsqueeze(0)
+        src = src.unsqueeze(0) if src.dim() <= 1 else src
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src))
@@ -80,10 +81,12 @@ class ASLModel(nn.Module):
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(sequence)
             out = self.decoder(out, memory, trg_mask)
-            out = softmax(self.ff(out))
+            out = softmax(self.ff_2(out))
 
             _, next_word = torch.max(out[:, -1], dim=-1)
             next_word = next_word.unsqueeze(dim=0).to(src.device)
+
+            print(next_word.shape)
 
             # Concatenate the predicted token to the output sequence
             sequence = torch.cat((sequence, next_word), dim=-1).to(src.device)

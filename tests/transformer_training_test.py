@@ -12,6 +12,8 @@ from torch.nn.modules.loss import _Loss
 from torch.nn.utils.rnn import pad_sequence
 from torcheval.metrics.functional import word_error_rate
 
+from asl_research.utils.utils import generate_padding_mask
+
 # Train on the GPU if possible
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 warnings.filterwarnings("ignore")
@@ -142,29 +144,45 @@ def test_transformer_training():
     optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
     criterion = torch.nn.CrossEntropyLoss()
     
-
     # Training model
     for epoch in range(EPOCHS + 1):
         loss = train_epoch(transformer, data, optimizer, criterion, epoch)
         print(f'Total Loss: {loss}\n')
-
-    preds = []
-    targets = []
-
+    
+    encoded = []
+    inputs = []
+    actual = []
+    
     # Testing greedy decoding
     for i in range(EXAMPLES):
         index = random.randint(0, len(value) - 1)
         src = key[index]
         trg = value[index]
         
-        encoded = torch.tensor([word_to_idx[word] for word in ["<sos>"] + src.split() + ["<eos>"]]).to(DEVICE)
-        out = transformer.greedy_decode(encoded, trg_vocab=word_to_idx)
+        e = torch.tensor([word_to_idx[word] for word in ["<sos>"] + src.split() + ["<eos>"]]).to(DEVICE)
+        inputs.append(src)
+        encoded.append(e)
+        actual.append(trg)
+    
+    encoded = pad_sequence(encoded, batch_first=True, padding_value=word_to_idx["<pad>"])
+    src_mask = generate_padding_mask(encoded, word_to_idx["<pad>"]).to(encoded.device)
+    out = transformer.greedy_decode(encoded, src_mask, trg_vocab=word_to_idx, max_len=20)
+    
+
+    preds = []
+    targets = []
+
+    for i in range(EXAMPLES):
+        src = inputs[i]
+        trg = actual[i]
+        res = out[i, :]
+        res = ' '.join([idx_to_words[word] for word in list(filter(lambda x: x != word_to_idx["<pad>"] and x != word_to_idx["<eos>"], res.tolist()[1:]))])
 
         print(f'Input Sentence: {src}')
-        print(f'Output Sentence: {' '.join([idx_to_words[word] for word in out.tolist()[1:-1]])}')
+        print(f'Output Sentence: {res}')
         print(f'Actual Sentence: {trg}\n')
         
-        preds.append(' '.join([idx_to_words[word] for word in out.tolist()[1:-1]]))
+        preds.append(res)
         targets.append(trg)
 
     wer = word_error_rate(preds, targets)
