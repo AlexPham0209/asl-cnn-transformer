@@ -13,6 +13,9 @@ import yaml
 from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
+from torcheval.metrics import WordErrorRate
+
+from asl_research.utils.utils import generate_padding_mask
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
@@ -67,8 +70,6 @@ def train(config: dict):
         idx_to_gloss=idx_to_gloss,
         word_to_idx=word_to_idx,
         idx_to_word=idx_to_word,
-        gloss_pad_token=gloss_to_idx["<pad>"],
-        word_pad_token=word_to_idx["<pad>"],
         d_model=model_config["d_model"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
@@ -102,13 +103,22 @@ def train(config: dict):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
 
-    valid_loss = validate(model, valid_dl, criterion)
+    valid_loss = validate(
+        model,
+        valid_dl,
+        ctc_loss,
+        cross_entropy_loss,
+        gloss_to_idx,
+        idx_to_gloss,
+        word_to_idx,
+        idx_to_word,
+    )
     print(f"Valid Average loss: {valid_loss:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
         train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
-        valid_loss = 0
+        valid_loss = validate(model, valid_dl, ctc_loss, cross_entropy_loss)
 
         train_loss_history.append(train_loss)
         valid_loss_history.append(valid_loss)
@@ -121,7 +131,6 @@ def train(config: dict):
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "criterion": criterion,
                     "best_loss": best_loss,
                     "train_loss_history": train_loss_history,
                     "valid_loss_history": valid_loss_history,
@@ -158,7 +167,7 @@ def train_epoch(
     optimizer: Optimizer,
     ctc_loss: nn.CTCLoss,
     cross_entropy_loss: nn.CrossEntropyLoss,
-    epoch=10,
+    epoch=1,
 ):
     model.train()
     losses = 0.0
@@ -195,24 +204,62 @@ def train_epoch(
     return losses / len(data)
 
 
-def validate(model, data, criterion):
+def validate(
+    model: ASLModel,
+    data: DataLoader,
+    ctc_loss: nn.CTCLoss,
+    cross_entropy_loss: nn.CrossEntropyLoss,
+    gloss_to_idx: dict,
+    idx_to_gloss: dict,
+    word_to_idx: dict,
+    idx_to_word: dict,
+):
     model.eval()
+
+    wer = WordErrorRate().to(DEVICE)
+    remove_special_tokens = (
+        lambda token: token != word_to_idx["<pad>"]
+        and token != word_to_idx["<eos>"]
+        and token != word_to_idx["<sos>"]
+    )
     losses = 0.0
 
-    for image, label in tqdm(data, desc="Validating"):
-        image = image.to(DEVICE)
-        label = label.to(DEVICE)
+    for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
+        videos = videos.to(DEVICE)
+        glosses = glosses.to(DEVICE)
+        gloss_lengths = gloss_lengths.to(DEVICE)
+        sentences = sentences.to(DEVICE)
 
-        # Should output a 3d tensor of size: (T, N, num_classes)
-        out = model(image).to(DEVICE)
-        out = log_softmax(out, dim=-1)
-        T, N, C = out.shape
+        encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
+        gloss = [" ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out]
+        sentence = [
+            " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+            for sample in decoder_out.tolist()
+        ]
+
+        print(gloss)
+        print(sentence)
+
+        # Should outpust the encoder output
+        # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
+        # decoder_out: (batch_size, sentence_length, word_vocab_size)
+        encoder_out, decoder_out = model(videos, sentences[:, :-1])
+
+        # Encoder loss
+        encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
+        T, N, _ = encoder_out.shape
         input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        target_lengths = torch.full(size=(N,), fill_value=label.shape[-1]).to(DEVICE)
+        gloss_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
-        loss = criterion(out, label, input_lengths, target_lengths)
-        losses += loss.item()
+        # Decoder loss
+        actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+        expected = sentences[:, 1:].reshape(-1)
+        word_loss = cross_entropy_loss(actual, expected)
+
+        # Calculating the joint loss
+        loss = gloss_loss + word_loss
+        losses += loss
 
     return losses / len(data)
 

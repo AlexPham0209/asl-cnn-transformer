@@ -176,7 +176,7 @@ def test_transformer_training():
         trg = actual[i]
         res = out[i, :]
         res = ' '.join([idx_to_words[word] for word in list(filter(lambda x: x != word_to_idx["<pad>"] and x != word_to_idx["<eos>"], res.tolist()[1:]))])
-
+        
         print(f'Input Sentence: {src}')
         print(f'Output Sentence: {res}')
         print(f'Actual Sentence: {trg}\n')

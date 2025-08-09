@@ -65,7 +65,6 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
-        src_mask: Optional[Tensor] = None,
         max_len: int = 100,
     ):
         self.eval()
@@ -74,14 +73,16 @@ class ASLModel(nn.Module):
         src = src.unsqueeze(0) if src.dim() <= 1 else src
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src), src_mask)
+        memory = self.encoder(self.src_embedding(src))
 
         # Get the gloss sequence
         encoded = self.ff_1(memory)
         encoded = softmax(encoded)
         encoded = torch.argmax(encoded, dim=-1).tolist()
         encoded = [[gloss for gloss, _ in itertools.groupby(sample)] for sample in encoded]
-        encoded = [[gloss for gloss in sample if gloss != self.gloss_to_idx["-"]] for sample in encoded]
+        encoded = [
+            [gloss for gloss in sample if gloss != self.gloss_to_idx["-"]] for sample in encoded
+        ]
 
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
@@ -99,10 +100,10 @@ class ASLModel(nn.Module):
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(sequence)
-            out = self.decoder(out, memory, trg_mask, src_mask)
+            out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out))
 
             next_word = torch.argmax(out[:, t - 1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 
-        return sequence.squeeze(0), encoded
+        return encoded, sequence
