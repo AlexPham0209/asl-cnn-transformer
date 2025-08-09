@@ -7,7 +7,7 @@ from torch.nn.functional import softmax, log_softmax
 
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
-from asl_research.model.spatial_embedding import Spatial2DEmbedding
+from asl_research.model.spatial_embedding import SpatialEmbedding
 from asl_research.utils.utils import generate_square_subsequent_mask
 
 
@@ -35,7 +35,7 @@ class ASLModel(nn.Module):
         self.word_pad_token = word_to_idx["<pad>"]
 
         # Encoder
-        self.src_embedding = Spatial2DEmbedding(d_model=d_model, dropout=dropout)
+        self.src_embedding = SpatialEmbedding(d_model=d_model, dropout=dropout)
         self.encoder = TransformerEncoder(
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )

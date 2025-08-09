@@ -106,21 +106,17 @@ class Conv2DBlock(nn.Module):
         return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
 
 
-class Spatial2DEmbedding(nn.Module):
+class SpatialEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):
-        super(Spatial2DEmbedding, self).__init__()
-        #YIPPE
+        super(SpatialEmbedding, self).__init__()
+
         # ResNet-50 and freezing all the weights
         self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
     
         # Replacing final classification layer with our own 
-        self.conv.fc = nn.Linear(self.conv.fc.in_features, 512)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(p=dropout)
-
-        self.ff_2 = nn.Linear(512, d_model)
+        self.conv.fc = nn.Linear(self.conv.fc.in_features, d_model)
 
     def forward(self, x: Tensor):
         """
@@ -139,15 +135,7 @@ class Spatial2DEmbedding(nn.Module):
 
         # Using pretrained weights
         x = self.conv(x)
-        
+
         # Reshaping the output of the Resnet
-        x = x.reshape(N, T, -1)
-
-        # Hidden layers
-        x = self.ff_1(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-
-        # Projecting to the embedding space
-        x = self.ff_2(x)
-        return x
+        return x.reshape(N, T, -1)
+        
