@@ -13,9 +13,12 @@ from torchvision.transforms import (
     RandomCrop,
     RandomRotation,
     Resize,
+    Normalize
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 
+mean = [0.45, 0.45, 0.45]
+std = [0.225, 0.225, 0.225]
 
 class PhoenixDataset(Dataset):
     def __init__(
@@ -33,9 +36,9 @@ class PhoenixDataset(Dataset):
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
 
-        self.df = pd.read_csv(self.dataset_path)
+        self.df = pd.read_csv(self.dataset_path).sample(n=200)
         self.vocab = json.load(open(self.vocab_path))
-
+        
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
 
@@ -48,10 +51,10 @@ class PhoenixDataset(Dataset):
         self.transform = Compose(
             [
                 Lambda(lambda x: x / 255.0),
+                Normalize(mean, std),
                 UniformTemporalSubsample(num_frames),
                 Resize((256, 256)),
-                RandomRotation(5),
-                ColorJitter(0.5, 0.5, 0.1, 0.1),
+                ColorJitter(0.24, 0.25, 0.1, 0.1),
                 RandomCrop(target_size),
             ]
         )
@@ -72,7 +75,7 @@ class PhoenixDataset(Dataset):
             + [self.word_to_idx[word] for word in sentence.split()]
             + [self.word_to_idx["<eos>"]]
         )
-
+        
         video: EncodedVideo = EncodedVideo.from_path(path)
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)

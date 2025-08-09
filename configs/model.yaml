@@ -11,7 +11,8 @@ training:
   save_path: 'models'
   load_path: ''
 
-  num_frames: 60
+  num_frames: 30
+  num_workers: 0
   seed: 29
   split: [0.8, 0.1, 0.1]
   batch_size: 2

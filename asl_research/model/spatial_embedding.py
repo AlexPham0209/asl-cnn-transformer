@@ -1,5 +1,7 @@
+import torch
 from torch import Tensor
 import torch.nn as nn
+from torchvision.models import resnet50, ResNet50_Weights
 
 
 class Conv3DBlock(nn.Module):
@@ -73,10 +75,10 @@ class Conv2DBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3)):
         super(Conv2DBlock, self).__init__()
         self.conv = nn.Conv2d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size
+            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, bias=False
         )
         self.batch_norm = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.max_pool = nn.MaxPool2d(kernel_size=(2, 2))
 
     def forward(self, x: Tensor):
@@ -107,17 +109,21 @@ class Conv2DBlock(nn.Module):
 class Spatial2DEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):
         super(Spatial2DEmbedding, self).__init__()
-        self.conv = nn.Sequential(
-            Conv2DBlock(in_channels=3, out_channels=32),
-            Conv2DBlock(in_channels=32, out_channels=64),
-            Conv2DBlock(in_channels=64, out_channels=32, kernel_size=(2, 2)),
-            Conv2DBlock(in_channels=32, out_channels=16, kernel_size=(2, 2)),
-        )
+        # self.conv = nn.Sequential(
+        #     Conv2DBlock(in_channels=3, out_channels=8),
+        #     Conv2DBlock(in_channels=8, out_channels=16),
+        #     Conv2DBlock(in_channels=16, out_channels=32),
+        #     Conv2DBlock(in_channels=32, out_channels=16, kernel_size=(2, 2)),
+        #     Conv2DBlock(in_channels=16, out_channels=8, kernel_size=(2, 2)),
+        # )
 
-        self.ff_1 = nn.Sequential(
-            nn.Linear(in_features=2304, out_features=512), nn.ReLU(), nn.Dropout(p=dropout)
-        )
-
+        # ResNet-50 and freezing all the weights
+        self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+        for param in self.conv.parameters():
+            param.requires_grad = False
+    
+        # Replacing final classification layer with our own 
+        self.conv.fc = nn.Linear(self.conv.fc.in_features, 512)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -133,14 +139,22 @@ class Spatial2DEmbedding(nn.Module):
         Returns:
             (Tensor): Tensor of shape (batch_size, time_out, depth_out * height_out * width_out)
         """
-        x = self.conv(x)
-        N, T, _, _, _ = x.shape
+        # Merge batches and time into the first dimension
+        # Allows for the CNN to be applied to every temporal slice
+        N, T, C, H, W = x.shape 
+        x = x.reshape(N * T, C, H, W)
 
-        # Reshapes the tensor into (batch_size, time, c * h * w)
+        # Using pretrained weights
+        x = self.conv(x)
+        
+        # Reshaping the output of the Resnet
         x = x.reshape(N, T, -1)
+
+        # Hidden layers
         x = self.ff_1(x)
         x = self.relu(x)
         x = self.dropout(x)
 
+        # Projecting to the embedding space
         x = self.ff_2(x)
         return x

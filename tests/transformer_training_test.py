@@ -116,7 +116,7 @@ def test_transformer_training():
     count = Counter(words.split())
 
     vocab = ['<sos>', '<eos>', '<pad>'] + sorted(count.keys(), key=lambda key: count[key])
-    idx_to_words = {id:word for id, word in enumerate(vocab)}
+    idx_to_word = {id:word for id, word in enumerate(vocab)}
     word_to_idx = {word:id for id, word in enumerate(vocab)}
 
     key = [
@@ -171,12 +171,22 @@ def test_transformer_training():
     preds = []
     targets = []
 
+    remove_special_tokens = (
+        lambda token: token != word_to_idx["<pad>"]
+        and token != word_to_idx["<eos>"]
+        and token != word_to_idx["<sos>"]
+    )
+
+    predicted_sentences = [
+        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+        for sample in out.tolist()
+    ]
+
     for i in range(EXAMPLES):
         src = inputs[i]
         trg = actual[i]
-        res = out[i, :]
-        res = ' '.join([idx_to_words[word] for word in list(filter(lambda x: x != word_to_idx["<pad>"] and x != word_to_idx["<eos>"], res.tolist()[1:]))])
-        
+        res = predicted_sentences[i]
+
         print(f'Input Sentence: {src}')
         print(f'Output Sentence: {res}')
         print(f'Actual Sentence: {trg}\n')

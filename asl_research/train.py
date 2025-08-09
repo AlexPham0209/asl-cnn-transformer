@@ -17,9 +17,10 @@ from torcheval.metrics.functional import word_error_rate
 
 from asl_research.utils.utils import generate_padding_mask
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
+torch.cuda.empty_cache()
 
 def train(config: dict):
     model_config = config["model"]
@@ -103,7 +104,7 @@ def train(config: dict):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
 
-    valid_loss = validate(
+    valid_loss, valid_wer = validate(
         model,
         valid_dl,
         ctc_loss,
@@ -113,12 +114,25 @@ def train(config: dict):
         word_to_idx,
         idx_to_word,
     )
-    print(f"Valid Average loss: {valid_loss:>8f}\n")
+    torch.cuda.empty_cache()
+    print(f"Valid Average loss: {valid_loss:>8f}")
+    print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
         train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
-        valid_loss = validate(model, valid_dl, ctc_loss, cross_entropy_loss)
+        torch.cuda.empty_cache()
+
+        valid_loss, valid_wer = validate(
+            model,
+            train_dl,
+            ctc_loss,
+            cross_entropy_loss,
+            gloss_to_idx,
+            idx_to_gloss,
+            word_to_idx,
+            idx_to_word,
+        )
 
         train_loss_history.append(train_loss)
         valid_loss_history.append(valid_loss)
@@ -141,12 +155,15 @@ def train(config: dict):
         total_time = time.time() - start_time
         print(f"\nEpoch Time: {total_time:.1f} seconds")
         print(f"Training Average loss: {train_loss:>8f}")
-        print(f"Valid Average loss: {valid_loss:>8f}\n")
+        print(f"Valid Average loss: {valid_loss:>8f}")
+        print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
 
         scheduler.step(valid_loss)
         if early_stopping.early_stop(valid_loss):
             print("Early stopping")
             break
+
+        torch.cuda.empty_cache()
 
     # Plot model's loss over epochs
     plt.title("Model Loss")
@@ -189,17 +206,20 @@ def train_epoch(
         encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
         T, N, _ = encoder_out.shape
         input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        gloss_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+        recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
         actual = decoder_out.reshape(-1, decoder_out.shape[-1])
         expected = sentences[:, 1:].reshape(-1)
-        word_loss = cross_entropy_loss(actual, expected)
+        translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
-        loss = gloss_loss + word_loss
+        loss = recognition_loss + translation_loss
+        losses += loss
+        
         loss.backward()
         optimizer.step()
+    
 
     return losses / len(data)
 
@@ -223,8 +243,8 @@ def validate(
     )
     losses = 0.0
 
-    actual = []
-    predicted = []
+    actual_sentences = list()
+    predicted_sentences = list()
 
     for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
         videos = videos.to(DEVICE)
@@ -234,10 +254,7 @@ def validate(
 
         encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
-
-        # predicted_gloss = [" ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out]
-        
-        actual_sentence = predicted_sentence = [
+        actual_sentence = [
             " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
             for sample in sentences.tolist()
         ]
@@ -246,31 +263,32 @@ def validate(
             for sample in decoder_out.tolist()
         ]
 
-        actual.extend(actual_sentence)
-        predicted.extend(predicted_sentence)
+        actual_sentences.extend(actual_sentence)
+        predicted_sentences.extend(predicted_sentence)
 
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
-
+        
         # Encoder loss
         encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
         T, N, _ = encoder_out.shape
         input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        gloss_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+        recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
         actual = decoder_out.reshape(-1, decoder_out.shape[-1])
         expected = sentences[:, 1:].reshape(-1)
-        word_loss = cross_entropy_loss(actual, expected)
+        translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
-        loss = gloss_loss + word_loss
+        loss = recognition_loss + translation_loss
         losses += loss
 
-        
-    return losses / len(data), word_error_rate(predicted, actual)
+    print(predicted_sentences)
+    print(actual_sentences)
+    return losses / len(data), word_error_rate(predicted_sentences, actual_sentences)
 
 
 if __name__ == "__main__":

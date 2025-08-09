@@ -35,7 +35,7 @@ class BaseTransformer(nn.Module):
         self.decoder = TransformerDecoder(
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
-
+        
         # Classification
         self.ff = nn.Linear(d_model, trg_vocab_size)
         self.softmax = nn.Softmax(dim=-1)
@@ -46,7 +46,7 @@ class BaseTransformer(nn.Module):
 
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
-
+        
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
@@ -76,19 +76,19 @@ class BaseTransformer(nn.Module):
         )
         sequence[:, 0] = trg_vocab["<sos>"]
 
-        for i in range(1, max_len):
-            # out = sequence[:, :i]
-            trg_mask = generate_square_subsequent_mask(sequence, self.pad_token).to(src.device)
+        for t in range(1, max_len):
+            out = sequence[:, :t]
+            trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
-            out = self.trg_embedding(sequence)
+            out = self.trg_embedding(out)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = self.softmax(self.ff(out))
 
-            _, next_word = torch.max(out[:, i - 1], dim=-1)
+            _, next_word = torch.max(out[:, -1], dim=-1)
             next_word = next_word.to(src.device)
-
+            
             # Concatenate the predicted token to the output sequence
-            sequence[:, i] = next_word
+            sequence[:, t] = next_word
 
         return sequence
