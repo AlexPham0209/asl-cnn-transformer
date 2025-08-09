@@ -13,7 +13,7 @@ import yaml
 from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
-from torcheval.metrics import WordErrorRate
+from torcheval.metrics.functional import word_error_rate
 
 from asl_research.utils.utils import generate_padding_mask
 
@@ -216,13 +216,15 @@ def validate(
 ):
     model.eval()
 
-    wer = WordErrorRate().to(DEVICE)
     remove_special_tokens = (
         lambda token: token != word_to_idx["<pad>"]
         and token != word_to_idx["<eos>"]
         and token != word_to_idx["<sos>"]
     )
     losses = 0.0
+
+    actual = []
+    predicted = []
 
     for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
         videos = videos.to(DEVICE)
@@ -232,14 +234,20 @@ def validate(
 
         encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
-        gloss = [" ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out]
-        sentence = [
+
+        # predicted_gloss = [" ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out]
+        
+        actual_sentence = predicted_sentence = [
+            " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+            for sample in sentences.tolist()
+        ]
+        predicted_sentence = [
             " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
             for sample in decoder_out.tolist()
         ]
 
-        print(gloss)
-        print(sentence)
+        actual.extend(actual_sentence)
+        predicted.extend(predicted_sentence)
 
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
@@ -261,7 +269,8 @@ def validate(
         loss = gloss_loss + word_loss
         losses += loss
 
-    return losses / len(data)
+        
+    return losses / len(data), word_error_rate(predicted, actual)
 
 
 if __name__ == "__main__":
