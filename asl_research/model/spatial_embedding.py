@@ -109,14 +109,7 @@ class Conv2DBlock(nn.Module):
 class Spatial2DEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, dropout: float = 0.1):
         super(Spatial2DEmbedding, self).__init__()
-        # self.conv = nn.Sequential(
-        #     Conv2DBlock(in_channels=3, out_channels=8),
-        #     Conv2DBlock(in_channels=8, out_channels=16),
-        #     Conv2DBlock(in_channels=16, out_channels=32),
-        #     Conv2DBlock(in_channels=32, out_channels=16, kernel_size=(2, 2)),
-        #     Conv2DBlock(in_channels=16, out_channels=8, kernel_size=(2, 2)),
-        # )
-
+        #YIPPE
         # ResNet-50 and freezing all the weights
         self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
