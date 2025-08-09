@@ -63,8 +63,10 @@ def train(config: dict):
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
         num_decoders=model_config["num_decoders"],
-        gloss_vocab_size=len(gloss_to_idx),
-        word_vocab_size=len(word_to_idx),
+        gloss_to_idx=gloss_to_idx,
+        idx_to_gloss=idx_to_gloss,
+        word_to_idx=word_to_idx,
+        idx_to_word=idx_to_word,
         gloss_pad_token=gloss_to_idx["<pad>"],
         word_pad_token=word_to_idx["<pad>"],
         d_model=model_config["d_model"],
@@ -77,7 +79,7 @@ def train(config: dict):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    early_stopping = EarlyStopping(patience=3, delta=0.1)
+    early_stopping = EarlyStopping(patience=3, delta=0.05)
 
     best_loss = torch.inf
     train_loss_history = []
@@ -100,8 +102,8 @@ def train(config: dict):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
 
-    # valid_loss = validate(model, valid_dl, criterion)
-    # print(f"Valid Average loss: {valid_loss:>8f}\n")
+    valid_loss = validate(model, valid_dl, criterion)
+    print(f"Valid Average loss: {valid_loss:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
@@ -169,7 +171,7 @@ def train_epoch(
 
         optimizer.zero_grad()
 
-        # Should output the encoder output
+        # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
         encoder_out, decoder_out = model(videos, sentences[:, :-1])

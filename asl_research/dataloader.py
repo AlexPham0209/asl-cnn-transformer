@@ -69,7 +69,8 @@ class PhoenixDataset(Dataset):
         gloss_tokens = torch.tensor([self.gloss_to_idx[gloss] for gloss in glosses.split()])
         word_tokens = torch.tensor(
             [self.word_to_idx["<sos>"]]
-            + [self.word_to_idx[word] for word in sentence.split()][self.word_to_idx["<eos>"]]
+            + [self.word_to_idx[word] for word in sentence.split()]
+            + [self.word_to_idx["<eos>"]]
         )
 
         video: EncodedVideo = EncodedVideo.from_path(path)
