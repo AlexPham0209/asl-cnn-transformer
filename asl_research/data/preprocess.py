@@ -1,14 +1,14 @@
 from collections import Counter
 import gzip
+import itertools
+import json
 import os
 import pickle
-import pandas as pd
-import cv2
-import itertools
-import numpy as np
-from scipy import stats
-import json
 
+import cv2
+import numpy as np
+import pandas as pd
+from scipy import stats
 
 EXTERNAL_PATH = os.path.join("data", "external", "phoenixweather2014t")
 PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")

@@ -1,25 +1,17 @@
 import os
-import torch
-import torchvision
-from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
+
+import pandas as pd
 from pytorchvideo.data.encoded_video import EncodedVideo
-import torchvision.transforms as transforms
+import torchvision
 from torchvision.transforms import (
+    ColorJitter,
     Compose,
     Lambda,
-    Resize,
-    Normalize,
-    RandomRotation,
     RandomCrop,
-    ColorJitter,
+    RandomRotation,
+    Resize,
 )
-
 from torchvision.transforms.v2 import UniformTemporalSubsample
-
-import cv2
-import pandas as pd
 from tqdm import tqdm
 
 FRAMES = 30

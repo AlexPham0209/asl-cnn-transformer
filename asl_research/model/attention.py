@@ -4,6 +4,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
+
 from asl_research.utils.utils import concat, split
 
 

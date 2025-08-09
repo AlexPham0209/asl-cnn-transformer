@@ -1,10 +1,11 @@
-import math
 from typing import Optional
-from torch import Tensor
+
 import torch
+from torch import Tensor
 import torch.nn as nn
-from asl_research.model.encoder import TransformerEncoder
+
 from asl_research.model.decoder import TransformerDecoder
+from asl_research.model.encoder import TransformerEncoder
 from asl_research.utils.utils import generate_padding_mask, generate_square_subsequent_mask
 
 

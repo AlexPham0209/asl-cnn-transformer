@@ -1,31 +1,20 @@
+import json
 import os
-import torch
-import torchvision
-from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-from pytorchvideo.data.encoded_video import EncodedVideo
-import torchvision.transforms as transforms
-from torch.nn.utils.rnn import pad_sequence
-from torcheval.metrics.functional import word_error_rate
 
+import pandas as pd
+from pytorchvideo.data.encoded_video import EncodedVideo
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data.dataset import Dataset
 from torchvision.transforms import (
+    ColorJitter,
     Compose,
     Lambda,
-    Resize,
-    Normalize,
-    RandomRotation,
     RandomCrop,
-    ColorJitter,
+    RandomRotation,
+    Resize,
 )
-
 from torchvision.transforms.v2 import UniformTemporalSubsample
-
-import cv2
-import pandas as pd
-from tqdm import tqdm
-import pandas as pd
-import json
 
 
 class PhoenixDataset(Dataset):

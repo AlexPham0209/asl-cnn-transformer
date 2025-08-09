@@ -1,13 +1,12 @@
-import math
 from typing import Optional
 
 import torch
 from torch import Tensor
 import torch.nn as nn
 
-from asl_research.model.positional_embedding import PositionalEncoding
 from asl_research.model.attention import MultiHeadAttention
 from asl_research.model.position_wise_feed_forward import PositionWiseFeedForward
+from asl_research.model.positional_embedding import PositionalEncoding
 
 
 class EncoderLayer(nn.Module):

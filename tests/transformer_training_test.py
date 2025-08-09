@@ -168,7 +168,6 @@ def test_transformer_training():
     src_mask = generate_padding_mask(encoded, word_to_idx["<pad>"]).to(encoded.device)
     out = transformer.greedy_decode(encoded, src_mask, trg_vocab=word_to_idx, max_len=20)
     
-
     preds = []
     targets = []
 

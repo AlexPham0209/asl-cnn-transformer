@@ -1,17 +1,17 @@
 import os
 import time
-from asl_research.dataloader import PhoenixDataset
-from asl_research.model.model import ASLModel
+
 import matplotlib.pyplot as plt
-from torch.nn.functional import log_softmax, softmax
 import torch
 from torch import nn
-from tqdm import tqdm
+from torch.nn.functional import log_softmax
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
-from torch.utils.data import random_split
+from torch.utils.data import DataLoader, random_split
+from tqdm import tqdm
 import yaml
 
+from asl_research.dataloader import PhoenixDataset
+from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -71,8 +71,6 @@ def train(config: dict):
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
     ).to(DEVICE)
-
-    print(model_config["dropout"])
 
     ctc_loss = nn.CTCLoss().to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
