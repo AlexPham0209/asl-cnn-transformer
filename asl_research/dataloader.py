@@ -16,9 +16,10 @@ from torchvision.transforms import (
     Normalize
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
+from pytorchvideo.transforms import Normalize
 
-mean = [0.45, 0.45, 0.45]
-std = [0.225, 0.225, 0.225]
+mean = [0.53724027, 0.5272855, 0.51954997]
+std = [1, 1, 1]
 
 class PhoenixDataset(Dataset):
     def __init__(
@@ -41,7 +42,7 @@ class PhoenixDataset(Dataset):
         
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
-
+        
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
 
@@ -50,11 +51,10 @@ class PhoenixDataset(Dataset):
 
         self.transform = Compose(
             [
-                Lambda(lambda x: x / 255.0),
-                Normalize(mean, std),
                 UniformTemporalSubsample(num_frames),
+                Lambda(lambda x: x / 255.),
+                Normalize(mean, std),
                 Resize((256, 256)),
-                ColorJitter(0.24, 0.25, 0.1, 0.1),
                 RandomCrop(target_size),
             ]
         )

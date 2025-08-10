@@ -2,9 +2,9 @@ model:
   num_encoders: 2
   num_decoders: 2
 
-  d_model: 512
+  d_model: 256
   num_heads: 8
-  dropout: 0.3
+  dropout: 0.1
 
 training:
   epochs: 30
@@ -15,7 +15,7 @@ training:
   num_workers: 0
   seed: 29
   split: [0.8, 0.1, 0.1]
-  batch_size: 2
+  batch_size: 4
   lr: 1e-4
 
 testing:

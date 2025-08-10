@@ -44,18 +44,21 @@ def train(config: dict):
     train_dl = DataLoader(
         train_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         shuffle=True,
         collate_fn=PhoenixDataset.collate_fn,
     )
     valid_dl = DataLoader(
         valid_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         shuffle=True,
         collate_fn=PhoenixDataset.collate_fn,
     )
     test_dl = DataLoader(
         test_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         shuffle=True,
         collate_fn=PhoenixDataset.collate_fn,
     )
@@ -76,7 +79,7 @@ def train(config: dict):
         dropout=model_config["dropout"],
     ).to(DEVICE)
 
-    ctc_loss = nn.CTCLoss().to(DEVICE)
+    ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
@@ -215,7 +218,7 @@ def train_epoch(
 
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
-        losses += loss
+        losses += loss.item()
         
         loss.backward()
         optimizer.step()
@@ -284,8 +287,8 @@ def validate(
 
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
-        losses += loss
-
+        losses += loss.item()
+    
     print(predicted_sentences)
     print(actual_sentences)
     return losses / len(data), word_error_rate(predicted_sentences, actual_sentences)
