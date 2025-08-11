@@ -77,7 +77,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(5):
+for i in range(10):
     videos, glosses, gloss_lengths, sentences = next(iter(dataloader))
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
@@ -85,6 +85,8 @@ for i in range(5):
     sentences = sentences.to(DEVICE)
 
     encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
+    # plt.imshow(videos[0, 15].permute(1, 2, 0).cpu())
+    # plt.show()
 
     actual_sentence = [
         " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])

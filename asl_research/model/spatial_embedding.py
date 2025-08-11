@@ -105,6 +105,7 @@ class Conv2DBlock(nn.Module):
         # Restore the original dimensions
         return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
 
+
 class Conv1DBlock(nn.Module):
     def __init__(
         self,
@@ -113,9 +114,12 @@ class Conv1DBlock(nn.Module):
         conv_kernel_size: int = 3,
         pooling_kernel_size: int = 2,
     ):
-        super(SpatialEmbedding, self).__init__()
+        super(Conv1DBlock, self).__init__()
         self.conv = nn.Conv1d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=conv_kernel_size
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=conv_kernel_size,
+            bias=False,
         )
         self.batch_norm = nn.BatchNorm1d(num_features=out_channels)
         self.relu = nn.ReLU()
@@ -127,6 +131,7 @@ class Conv1DBlock(nn.Module):
         x = self.relu(x)
 
         return self.pooling(x)
+
 
 class SpatialEmbedding(nn.Module):
     def __init__(self, d_model: int = 512, hidden_size: int = 256, dropout: float = 0.1):
@@ -158,6 +163,7 @@ class SpatialEmbedding(nn.Module):
 
         # Using pretrained weights
         x = self.conv(x)
+        x = self.ff(x)
 
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)

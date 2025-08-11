@@ -94,6 +94,7 @@ def train(config: dict):
     epochs = training_config["epochs"]
     save_path = training_config["save_path"]
     load_path = training_config["load_path"]
+    file_name = training_config["file_name"]
 
     curr_epoch = 1
 
@@ -110,13 +111,15 @@ def train(config: dict):
 
     valid_loss, valid_wer = validate(
         model,
-        train_dl,
+        valid_dl,
         ctc_loss,
         cross_entropy_loss,
         gloss_to_idx,
         idx_to_gloss,
         word_to_idx,
         idx_to_word,
+        training_config["train_recognition"],
+        training_config["train_translation"],
     )
     print(f"Valid Average loss: {valid_loss:>8f}")
     print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
@@ -124,17 +127,28 @@ def train(config: dict):
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
-        train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
+        train_loss = train_epoch(
+            model,
+            train_dl,
+            optimizer,
+            ctc_loss,
+            cross_entropy_loss,
+            epoch,
+            training_config["train_recognition"],
+            training_config["train_translation"],
+        )
 
         valid_loss, valid_wer = validate(
             model,
-            train_dl,
+            valid_dl,
             ctc_loss,
             cross_entropy_loss,
             gloss_to_idx,
             idx_to_gloss,
             word_to_idx,
             idx_to_word,
+            training_config["train_recognition"],
+            training_config["train_translation"],
         )
 
         train_loss_history.append(train_loss)
@@ -152,7 +166,7 @@ def train(config: dict):
                     "train_loss_history": train_loss_history,
                     "valid_loss_history": valid_loss_history,
                 },
-                os.path.join(save_path, "best.pt"),
+                os.path.join(save_path, f"{file_name}.pt"),
             )
 
         total_time = time.time() - start_time
@@ -187,7 +201,9 @@ def train_epoch(
     optimizer: Optimizer,
     ctc_loss: nn.CTCLoss,
     cross_entropy_loss: nn.CrossEntropyLoss,
-    epoch=1,
+    epoch: int = 1,
+    train_recognition: bool = True,
+    train_translation: bool = True,
 ):
     model.train()
     losses = 0.0
@@ -206,15 +222,19 @@ def train_epoch(
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
-        encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
-        T, N, _ = encoder_out.shape
-        input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+        recognition_loss = 0.0
+        if train_recognition:
+            encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
+            T, N, _ = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
+            recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
-        actual = decoder_out.reshape(-1, decoder_out.shape[-1])
-        expected = sentences[:, 1:].reshape(-1)
-        translation_loss = cross_entropy_loss(actual, expected)
+        translation_loss = 0.0
+        if train_translation:
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+            expected = sentences[:, 1:].reshape(-1)
+            translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
@@ -235,6 +255,8 @@ def validate(
     idx_to_gloss: dict,
     word_to_idx: dict,
     idx_to_word: dict,
+    validate_recognition: bool = True,
+    validate_translation: bool = True,
 ):
     model.eval()
 
@@ -248,6 +270,9 @@ def validate(
     actual_sentences = list()
     predicted_sentences = list()
 
+    actual_glosses = list()
+    predicted_glosses = list()
+
     for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
         videos = videos.to(DEVICE)
         glosses = glosses.to(DEVICE)
@@ -256,17 +281,40 @@ def validate(
 
         encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
-        actual_sentence = [
-            " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-            for sample in sentences.tolist()
-        ]
-        predicted_sentence = [
-            " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-            for sample in decoder_out.tolist()
+        # actual_sentence = [
+        #     " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+        #     for sample in sentences.tolist()
+        # ]
+        # predicted_sentence = [
+        #     " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+        #     for sample in decoder_out.tolist()
+        # ]
+
+        actual_gloss = [
+            " ".join(
+                [
+                    idx_to_gloss[token]
+                    for token in list(filter(lambda x: x != gloss_to_idx["<pad>"], sample))
+                ]
+            )
+            for sample in glosses.tolist()
         ]
 
-        actual_sentences.extend(actual_sentence)
-        predicted_sentences.extend(predicted_sentence)
+        predicted_gloss = [
+            " ".join(
+                [
+                    idx_to_gloss[token]
+                    for token in list(filter(lambda x: x != gloss_to_idx["<pad>"], sample))
+                ]
+            )
+            for sample in encoder_out
+        ]
+
+        # actual_sentences.extend(actual_sentence)
+        # predicted_sentences.extend(predicted_sentence)
+
+        actual_glosses.extend(actual_gloss)
+        predicted_glosses.extend(predicted_gloss)
 
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
@@ -274,23 +322,25 @@ def validate(
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
-        encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
-        T, N, _ = encoder_out.shape
-        input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-        recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+        recognition_loss = 0.0
+        if validate_recognition:
+            encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
+            T, N, _ = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
+            recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
-        actual = decoder_out.reshape(-1, decoder_out.shape[-1])
-        expected = sentences[:, 1:].reshape(-1)
-        translation_loss = cross_entropy_loss(actual, expected)
+        translation_loss = 0.0
+        if validate_translation:
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+            expected = sentences[:, 1:].reshape(-1)
+            translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
         losses += loss.item()
 
-    print(predicted_sentences)
-    print(actual_sentences)
-    return losses / len(data), word_error_rate(predicted_sentences, actual_sentences)
+    return losses / len(data), word_error_rate(actual_glosses, predicted_glosses)
 
 
 if __name__ == "__main__":

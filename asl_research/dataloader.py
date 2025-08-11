@@ -37,7 +37,7 @@ class PhoenixDataset(Dataset):
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
 
-        self.df = pd.read_csv(self.dataset_path).sample(n=200)
+        self.df = pd.read_csv(self.dataset_path)
         self.vocab = json.load(open(self.vocab_path))
 
         self.glosses = self.vocab["glosses"]
