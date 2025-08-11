@@ -13,13 +13,13 @@ from torchvision.transforms import (
     RandomCrop,
     RandomRotation,
     Resize,
-    Normalize
+    Normalize,
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
-from pytorchvideo.transforms import Normalize
 
 mean = [0.53724027, 0.5272855, 0.51954997]
 std = [1, 1, 1]
+
 
 class PhoenixDataset(Dataset):
     def __init__(
@@ -39,10 +39,10 @@ class PhoenixDataset(Dataset):
 
         self.df = pd.read_csv(self.dataset_path).sample(n=200)
         self.vocab = json.load(open(self.vocab_path))
-        
+
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
-        
+
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
 
@@ -52,12 +52,15 @@ class PhoenixDataset(Dataset):
         self.transform = Compose(
             [
                 UniformTemporalSubsample(num_frames),
-                Lambda(lambda x: x / 255.),
+                Lambda(self.normalize_color),
                 Normalize(mean, std),
                 Resize((256, 256)),
                 RandomCrop(target_size),
             ]
         )
+
+    def normalize_color(self, x: torch.Tensor):
+        return x / 255.0
 
     def __len__(self):
         return len(self.df)
@@ -75,7 +78,7 @@ class PhoenixDataset(Dataset):
             + [self.word_to_idx[word] for word in sentence.split()]
             + [self.word_to_idx["<eos>"]]
         )
-        
+
         video: EncodedVideo = EncodedVideo.from_path(path)
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)

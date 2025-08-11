@@ -105,18 +105,41 @@ class Conv2DBlock(nn.Module):
         # Restore the original dimensions
         return x.reshape(N, T, x.shape[-3], x.shape[-2], x.shape[-1])
 
+class Conv1DBlock(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        conv_kernel_size: int = 3,
+        pooling_kernel_size: int = 2,
+    ):
+        super(SpatialEmbedding, self).__init__()
+        self.conv = nn.Conv1d(
+            in_channels=in_channels, out_channels=out_channels, kernel_size=conv_kernel_size
+        )
+        self.batch_norm = nn.BatchNorm1d(num_features=out_channels)
+        self.relu = nn.ReLU()
+        self.pooling = nn.MaxPool1d(kernel_size=pooling_kernel_size)
+
+    def forward(self, x: Tensor):
+        x = self.conv(x)
+        x = self.batch_norm(x)
+        x = self.relu(x)
+
+        return self.pooling(x)
 
 class SpatialEmbedding(nn.Module):
-    def __init__(self, d_model: int = 512, dropout: float = 0.1):
+    def __init__(self, d_model: int = 512, hidden_size: int = 256, dropout: float = 0.1):
         super(SpatialEmbedding, self).__init__()
 
         # ResNet-50 and freezing all the weights
         self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
-    
-        # Replacing final classification layer with our own 
-        self.conv.fc = nn.Linear(self.conv.fc.in_features, d_model)
+
+        # Replacing final classification layer with our own
+        self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
+        self.ff = nn.Linear(hidden_size, d_model)
 
     def forward(self, x: Tensor):
         """
@@ -130,7 +153,7 @@ class SpatialEmbedding(nn.Module):
         """
         # Merge batches and time into the first dimension
         # Allows for the CNN to be applied to every temporal slice
-        N, T, C, H, W = x.shape 
+        N, T, C, H, W = x.shape
         x = x.reshape(N * T, C, H, W)
 
         # Using pretrained weights
@@ -138,4 +161,3 @@ class SpatialEmbedding(nn.Module):
 
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)
-        

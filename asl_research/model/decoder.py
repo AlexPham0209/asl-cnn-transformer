@@ -18,7 +18,7 @@ class DecoderLayer(nn.Module):
         self.self_attention = MultiHeadAttention(d_model, num_heads)
         self.layer_norm_1 = nn.LayerNorm(d_model)
         self.dropout_1 = nn.Dropout(dropout)
-        
+
         # Cross Attention
         self.cross_attention = MultiHeadAttention(d_model, num_heads)
         self.layer_norm_2 = nn.LayerNorm(d_model)

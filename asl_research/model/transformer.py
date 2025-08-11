@@ -35,7 +35,7 @@ class BaseTransformer(nn.Module):
         self.decoder = TransformerDecoder(
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
-        
+
         # Classification
         self.ff = nn.Linear(d_model, trg_vocab_size)
         self.softmax = nn.Softmax(dim=-1)
@@ -46,7 +46,7 @@ class BaseTransformer(nn.Module):
 
         src = self.src_embedding(src)
         trg = self.trg_embedding(trg)
-        
+
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
@@ -85,9 +85,8 @@ class BaseTransformer(nn.Module):
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = self.softmax(self.ff(out))
 
-            _, next_word = torch.max(out[:, -1], dim=-1)
-            next_word = next_word.to(src.device)
-            
+            next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
+
             # Concatenate the predicted token to the output sequence
             sequence[:, t] = next_word
 

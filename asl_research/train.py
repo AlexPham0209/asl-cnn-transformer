@@ -22,6 +22,7 @@ CONFIG_PATH = "configs"
 
 torch.cuda.empty_cache()
 
+
 def train(config: dict):
     model_config = config["model"]
     training_config = config["training"]
@@ -109,7 +110,7 @@ def train(config: dict):
 
     valid_loss, valid_wer = validate(
         model,
-        valid_dl,
+        train_dl,
         ctc_loss,
         cross_entropy_loss,
         gloss_to_idx,
@@ -117,14 +118,13 @@ def train(config: dict):
         word_to_idx,
         idx_to_word,
     )
-    torch.cuda.empty_cache()
     print(f"Valid Average loss: {valid_loss:>8f}")
     print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
+    torch.cuda.empty_cache()
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
         train_loss = train_epoch(model, train_dl, optimizer, ctc_loss, cross_entropy_loss, epoch)
-        torch.cuda.empty_cache()
 
         valid_loss, valid_wer = validate(
             model,
@@ -219,10 +219,9 @@ def train_epoch(
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
         losses += loss.item()
-        
+
         loss.backward()
         optimizer.step()
-    
 
     return losses / len(data)
 
@@ -273,7 +272,7 @@ def validate(
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
-        
+
         # Encoder loss
         encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
         T, N, _ = encoder_out.shape
@@ -288,7 +287,7 @@ def validate(
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
         losses += loss.item()
-    
+
     print(predicted_sentences)
     print(actual_sentences)
     return losses / len(data), word_error_rate(predicted_sentences, actual_sentences)

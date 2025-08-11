@@ -59,7 +59,7 @@ class ASLModel(nn.Module):
 
         src = self.ff_1(src)
         trg = self.ff_2(trg)
-        
+
         return src, trg
 
     def greedy_decode(
@@ -92,12 +92,10 @@ class ASLModel(nn.Module):
             .to(src.device)
         )
         sequence[:, 0] = self.word_to_idx["<sos>"]
-        
+
         for t in range(1, max_len):
             out = sequence[:, :t]
-            trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(
-                src.device
-            )
+            trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(src.device)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out)

@@ -12,7 +12,7 @@ from torchvision.transforms import (
     Resize,
     ToTensor,
     Normalize,
-    ToPILImage
+    ToPILImage,
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from tqdm import tqdm
@@ -29,7 +29,7 @@ paths = list(train["paths"])
 transform = Compose(
     [
         UniformTemporalSubsample(FRAMES),
-        Lambda(lambda x: x / 255.),
+        Lambda(lambda x: x / 255.0),
         Normalize(mean, std),
         Resize((256, 256)),
         RandomCrop((224, 224)),
@@ -39,7 +39,9 @@ transform = Compose(
 i = 0
 for path in tqdm(paths[:5], desc="Loading Videos"):
     i += 1
-    video: EncodedVideo = EncodedVideo.from_path(os.path.join("data\\processed\\phoenixweather2014t\\videos_phoenix\\videos", path))
+    video: EncodedVideo = EncodedVideo.from_path(
+        os.path.join("data\\processed\\phoenixweather2014t\\videos_phoenix\\videos", path)
+    )
     clip_duration = video.duration
     video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
     video_data = transform(video_data)

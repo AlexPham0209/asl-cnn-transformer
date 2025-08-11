@@ -1,6 +1,7 @@
 # Data
 /data/
 /models/
+/model_2/
 
 # Mac OS-specific storage files
 .DS_Store
