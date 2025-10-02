@@ -57,22 +57,19 @@ class DecoderLayer(nn.Module):
 
         # Masked Self Attention
         # Shape: (batch_size, target_sequence_size, d_model)
-        x = x + self.self_attention(q=x, k=x, v=x, mask=trg_mask)
+        x = x + self.dropout_1(self.self_attention(q=x, k=x, v=x, mask=trg_mask))
         x = self.layer_norm_1(x)
-        x = self.dropout_1(x)
 
         if encoded is not None:
             # Cross Attention
             # Shape: (batch_size, target_sequence_size, d_model)
-            x = x + self.cross_attention(q=x, k=encoded, v=encoded, mask=src_mask)
+            x = x + self.dropout_2(self.cross_attention(q=x, k=encoded, v=encoded, mask=src_mask))
             x = self.layer_norm_2(x)
-            x = self.dropout_2(x)
 
         # Position-Wise Feed Forward
         # Shape: (batch_size, target_sequence_size, d_model)
-        x = x + self.ff(x)
+        x = x + self.dropout_2(self.ff(x))
         x = self.layer_norm_3(x)
-        x = self.dropout_3(x)
 
         return x
 

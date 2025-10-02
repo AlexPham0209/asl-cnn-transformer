@@ -228,7 +228,7 @@ def train_epoch(
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+        
         # Decoder loss
         translation_loss = 0.0
         if train_translation:
@@ -279,7 +279,8 @@ def validate(
         gloss_lengths = gloss_lengths.to(DEVICE)
         sentences = sentences.to(DEVICE)
 
-        encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
+        with torch.no_grad():
+            encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
         # actual_sentence = [
         #     " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
@@ -319,7 +320,8 @@ def validate(
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
-        encoder_out, decoder_out = model(videos, sentences[:, :-1])
+        with torch.no_grad():
+            encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
         recognition_loss = 0.0

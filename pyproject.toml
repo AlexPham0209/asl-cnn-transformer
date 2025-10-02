@@ -30,10 +30,12 @@ dependencies = [
     "scikit-learn",
     "av==11.0.0",
     "opencv-python",
-    "pytorch",
+    "torch",
 ]
 requires-python = "~=3.12.0"
 
+[project.scripts]
+preprocess = "asl_research.data.preprocess:preprocess"
 
 [tool.ruff]
 line-length = 99
@@ -46,4 +48,3 @@ extend-select = ["I"]  # Add import sorting
 [tool.ruff.lint.isort]
 known-first-party = ["asl_research"]
 force-sort-within-sections = true
-

@@ -15,6 +15,7 @@ def test_dataset():
     print(gloss_lengths)
     print(sentences)
     print()
+    
     assert videos.shape == (2, 120, 3, 224, 224)
     assert gloss_lengths.shape[0] == 2
     assert gloss_sequences.shape[0] == 2

@@ -57,7 +57,7 @@ class ASLModel(nn.Module):
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
 
-        src = self.ff_1(src)
+        src = self.ff_1(src)    
         trg = self.ff_2(trg)
 
         return src, trg
@@ -68,7 +68,7 @@ class ASLModel(nn.Module):
         max_len: int = 100,
     ):
         self.eval()
-
+        
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
 
