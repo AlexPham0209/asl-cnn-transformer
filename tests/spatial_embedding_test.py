@@ -1,6 +1,6 @@
 import pytest
 import torch
-from asl_research.model.spatial_embedding import Spatial3DEmbedding, Spatial2DEmbedding, Conv2DBlock
+from asl_research.model.spatial_embedding import Spatial3DEmbedding, SpatialEmbedding, Conv2DBlock
 
 def test_spatial_embedding_shape_1():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +42,7 @@ def test_conv2d_block():
 def test_spatial_2d_embedding():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size, time, channels, height, width = 8, 60, 3, 224, 224
-    embedding = Spatial2DEmbedding().to(DEVICE)
+    embedding = SpatialEmbedding().to(DEVICE)
     x = torch.rand(batch_size, time, channels, height, width).to(DEVICE)
     x = embedding(x)
 
