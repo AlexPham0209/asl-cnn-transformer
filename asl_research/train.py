@@ -216,9 +216,9 @@ def train_epoch(
 
         optimizer.zero_grad()
 
-        # Should outpust the encoder output
+        # Should output the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
-        # decoder_out: (batch_size, sentence_length, word_vocab_size)
+        # decoder_out: (batch_size, video_length, word_vocab_size)
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
@@ -228,7 +228,7 @@ def train_epoch(
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-        
+
         # Decoder loss
         translation_loss = 0.0
         if train_translation:
@@ -267,11 +267,11 @@ def validate(
     )
     losses = 0.0
 
-    actual_sentences = list()
-    predicted_sentences = list()
-
-    actual_glosses = list()
-    predicted_glosses = list()
+    actual_sentences = []
+    predicted_sentences = []
+        
+    actual_glosses = []
+    predicted_glosses = []
 
     for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
         videos = videos.to(DEVICE)
@@ -279,40 +279,18 @@ def validate(
         gloss_lengths = gloss_lengths.to(DEVICE)
         sentences = sentences.to(DEVICE)
 
-        with torch.no_grad():
-            encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
+        encoder_out, decoder_out = model.greedy_decode(videos)
+        
+        # Convert output tensors into strings
+        actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
+        predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
 
-        # actual_sentence = [
-        #     " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        #     for sample in sentences.tolist()
-        # ]
-        # predicted_sentence = [
-        #     " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        #     for sample in decoder_out.tolist()
-        # ]
+        actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+        predicted_gloss = decode_glosses(encoder_out.tolist(), gloss_to_idx, idx_to_gloss)
 
-        actual_gloss = [
-            " ".join(
-                [
-                    idx_to_gloss[token]
-                    for token in list(filter(lambda x: x != gloss_to_idx["<pad>"], sample))
-                ]
-            )
-            for sample in glosses.tolist()
-        ]
-
-        predicted_gloss = [
-            " ".join(
-                [
-                    idx_to_gloss[token]
-                    for token in list(filter(lambda x: x != gloss_to_idx["<pad>"], sample))
-                ]
-            )
-            for sample in encoder_out
-        ]
-
-        # actual_sentences.extend(actual_sentence)
-        # predicted_sentences.extend(predicted_sentence)
+        # Add to collection of sentences and glosses for WER calculation
+        actual_sentences.extend(actual_sentence)
+        predicted_sentences.extend(predicted_sentence)
 
         actual_glosses.extend(actual_gloss)
         predicted_glosses.extend(predicted_gloss)
@@ -320,8 +298,7 @@ def validate(
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
-        with torch.no_grad():
-            encoder_out, decoder_out = model(videos, sentences[:, :-1])
+        encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
         recognition_loss = 0.0
@@ -345,8 +322,36 @@ def validate(
     return losses / len(data), word_error_rate(actual_glosses, predicted_glosses)
 
 
-if __name__ == "__main__":
+def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
+    remove_special_tokens = (
+        lambda token: token != word_to_idx["<pad>"]
+        and token != word_to_idx["<eos>"]
+        and token != word_to_idx["<sos>"]
+    )
+
+    sentences = [
+        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sequence))])
+        for sample in sequence
+    ]
+
+    return sentences
+
+def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
+    remove_padding = lambda x: x != gloss_to_idx["<pad>"]
+
+    sequence = [
+        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sequence))])
+        for sample in sequence
+    ]
+    return sequence
+
+
+def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
 
     train(config)
+
+
+if __name__ == "__main__":
+    main()

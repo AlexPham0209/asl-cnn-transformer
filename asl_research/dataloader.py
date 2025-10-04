@@ -17,8 +17,11 @@ from torchvision.transforms import (
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 
-mean = [0.53724027, 0.5272855, 0.51954997]
-std = [1, 1, 1]
+# mean = (0.53724027, 0.5272855, 0.51954997)
+# std = (1, 1, 1)
+
+mean = ((0.485, 0.456, 0.406),)
+std = (0.229, 0.224, 0.225)
 
 
 class PhoenixDataset(Dataset):
@@ -43,12 +46,14 @@ class PhoenixDataset(Dataset):
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
 
+        # Create dictionaries to convert string tokens into their ids and vice versa
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
 
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
+        # Data augmentation settings
         self.transform = Compose(
             [
                 UniformTemporalSubsample(num_frames),
@@ -56,6 +61,7 @@ class PhoenixDataset(Dataset):
                 Normalize(mean, std),
                 Resize((256, 256)),
                 RandomCrop(target_size),
+                ColorJitter(brightness=(0.5, 1.0), hue=0.2),
             ]
         )
 
@@ -66,12 +72,13 @@ class PhoenixDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, index):
+        # Reading information from row entry in the dataframe
         item = self.df.iloc[index]
-
         path = os.path.join(self.video_dir, item["paths"])
         glosses = item["glosses"]
         sentence = item["texts"]
 
+        # Convert strings into token sequences
         gloss_tokens = torch.tensor([self.gloss_to_idx[gloss] for gloss in glosses.split()])
         word_tokens = torch.tensor(
             [self.word_to_idx["<sos>"]]
@@ -79,6 +86,7 @@ class PhoenixDataset(Dataset):
             + [self.word_to_idx["<eos>"]]
         )
 
+        # Load video from path and transpose time and batch dimensions
         video: EncodedVideo = EncodedVideo.from_path(path)
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
@@ -107,7 +115,7 @@ class PhoenixDataset(Dataset):
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-        
+
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-        
+
         return videos, gloss_sequences, gloss_lengths, sentences

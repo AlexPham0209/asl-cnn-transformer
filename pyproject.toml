@@ -31,11 +31,15 @@ dependencies = [
     "av==11.0.0",
     "opencv-python",
     "torch",
+    "tqdm",
+    "torcheval",
+    "pytorchvideo"
 ]
 requires-python = "~=3.12.0"
 
 [project.scripts]
-preprocess = "asl_research.data.preprocess:preprocess"
+preprocess = "asl_research.data.preprocess:main"
+train = "asl_research.train:main"
 
 [tool.ruff]
 line-length = 99

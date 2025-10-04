@@ -198,3 +198,6 @@ def test_transformer_training():
     print(f"WER: {wer}")
     
     assert wer <= 0.05
+
+if __name__ == "__main__":
+    test_transformer_training()

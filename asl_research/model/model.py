@@ -1,4 +1,5 @@
 import itertools
+import math
 from typing import Optional
 import torch
 from torch import Tensor
@@ -34,6 +35,8 @@ class ASLModel(nn.Module):
         self.gloss_pad_token = gloss_to_idx["<pad>"]
         self.word_pad_token = word_to_idx["<pad>"]
 
+        self.d_model = d_model
+
         # Encoder
         self.src_embedding = SpatialEmbedding(d_model=d_model, dropout=dropout)
         self.encoder = TransformerEncoder(
@@ -51,13 +54,13 @@ class ASLModel(nn.Module):
     def forward(self, src: Tensor, trg: Tensor):
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
-        src = self.src_embedding(src)
-        trg = self.trg_embedding(trg)
+        src = self.src_embedding(src) * math.sqrt(self.d_model)
+        trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
 
-        src = self.ff_1(src)    
+        src = self.ff_1(src)
         trg = self.ff_2(trg)
 
         return src, trg
@@ -68,12 +71,12 @@ class ASLModel(nn.Module):
         max_len: int = 100,
     ):
         self.eval()
-        
+
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src))
+        memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
 
         # Get the gloss sequence
         encoded = self.ff_1(memory)
@@ -98,7 +101,7 @@ class ASLModel(nn.Module):
             trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(src.device)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
-            out = self.trg_embedding(out)
+            out = self.trg_embedding(out * math.sqrt(self.d_model))
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
 

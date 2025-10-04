@@ -30,7 +30,8 @@ def video_path(set):
         )
     )
 
-def preprocess():
+
+def main():
     # Load dataset
     with gzip.open(
         os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb"
@@ -87,7 +88,7 @@ def preprocess():
     df = df.loc[
         df["paths"].astype(str).map(lambda file: os.path.exists(os.path.join(VIDEO_PATH, file)))
     ]
-    
+
     # Creating new columns for the number of frames
     frames = list(
         map(
@@ -104,7 +105,9 @@ def preprocess():
     gloss_count = Counter(
         itertools.chain.from_iterable([sequence.split() for sequence in df["glosses"]])
     )
-    word_count = Counter(itertools.chain.from_iterable([sentence.split() for sentence in df["texts"]]))
+    word_count = Counter(
+        itertools.chain.from_iterable([sentence.split() for sentence in df["texts"]])
+    )
 
     gloss_list = ["-", "<pad>"] + sorted(
         gloss_count.keys(), key=lambda x: gloss_count[x], reverse=True
@@ -121,5 +124,6 @@ def preprocess():
 
     df.to_csv(os.path.join(PROCESSED_PATH, "dataset.csv"), index=False)
 
+
 if __name__ == "__main__":
-    preprocess()
+    main()

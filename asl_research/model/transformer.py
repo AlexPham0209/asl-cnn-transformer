@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 
 import torch
@@ -23,6 +24,7 @@ class BaseTransformer(nn.Module):
     ):
         super(BaseTransformer, self).__init__()
         self.pad_token = pad_token
+        self.d_model = d_model
 
         # Encoder
         self.src_embedding = nn.Embedding(src_vocab_size, embedding_dim=d_model)
@@ -44,8 +46,8 @@ class BaseTransformer(nn.Module):
         src_mask: Tensor = generate_padding_mask(src, self.pad_token).to(src.device)
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token).to(trg.device)
 
-        src = self.src_embedding(src)
-        trg = self.trg_embedding(trg)
+        src = self.src_embedding(src) * math.sqrt(self.d_model)
+        trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
@@ -65,7 +67,7 @@ class BaseTransformer(nn.Module):
         # src = src.unsqueeze(0)
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src), src_mask)
+        memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
 
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
@@ -81,7 +83,7 @@ class BaseTransformer(nn.Module):
             trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
-            out = self.trg_embedding(out)
+            out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = self.softmax(self.ff(out))
 
