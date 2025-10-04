@@ -269,7 +269,7 @@ def validate(
 
     actual_sentences = []
     predicted_sentences = []
-        
+
     actual_glosses = []
     predicted_glosses = []
 
@@ -280,7 +280,7 @@ def validate(
         sentences = sentences.to(DEVICE)
 
         encoder_out, decoder_out = model.greedy_decode(videos)
-        
+
         # Convert output tensors into strings
         actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
         predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
@@ -335,6 +335,7 @@ def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
     ]
 
     return sentences
+
 
 def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
     remove_padding = lambda x: x != gloss_to_idx["<pad>"]

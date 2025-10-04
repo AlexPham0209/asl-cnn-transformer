@@ -84,9 +84,10 @@ class ASLModel(nn.Module):
         encoded = torch.argmax(encoded, dim=-1).tolist()
         encoded = [[gloss for gloss, _ in itertools.groupby(sample)] for sample in encoded]
         encoded = [
-            [gloss for gloss in sample if gloss != self.gloss_to_idx["-"]] for sample in encoded
+            list(filter(lambda gloss: gloss != self.gloss_to_idx["-"], sample))
+            for sample in encoded
         ]
-
+        
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
