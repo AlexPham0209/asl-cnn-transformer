@@ -42,6 +42,7 @@ def train(config: dict):
         dataset=dataset, lengths=training_config["split"], generator=generator
     )
 
+    # Creating dataloaders for each subset 
     train_dl = DataLoader(
         train_set,
         batch_size=training_config["batch_size"],
@@ -64,10 +65,16 @@ def train(config: dict):
         collate_fn=PhoenixDataset.collate_fn,
     )
 
-    # Creating the model
+    
+    # Checking that the special tokens exists inside of the vocabularies
+    assert "-" in gloss_to_idx
+    assert "<sos>" in word_to_idx
+    assert "<eos>" in word_to_idx
+
     assert "<pad>" in gloss_to_idx
     assert "<pad>" in word_to_idx
 
+    # Creating the model    
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
         num_decoders=model_config["num_decoders"],
@@ -79,14 +86,18 @@ def train(config: dict):
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
     ).to(DEVICE)
-
+    
+    # Creating the losses used for recognition and translation
     ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
+    # Creating optimizer and 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
     early_stopping = EarlyStopping(patience=3, delta=0.05)
 
+
+    # Loading hyperparameters
     best_loss = torch.inf
     train_loss_history = []
     valid_loss_history = []
@@ -109,6 +120,7 @@ def train(config: dict):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
 
+    # Start training
     valid_loss, valid_wer = validate(
         model,
         valid_dl,
@@ -282,18 +294,18 @@ def validate(
         encoder_out, decoder_out = model.greedy_decode(videos)
 
         # Convert output tensors into strings
+        actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+        predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+
         actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
         predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
 
-        actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
-        predicted_gloss = decode_glosses(encoder_out.tolist(), gloss_to_idx, idx_to_gloss)
-
         # Add to collection of sentences and glosses for WER calculation
-        actual_sentences.extend(actual_sentence)
-        predicted_sentences.extend(predicted_sentence)
-
         actual_glosses.extend(actual_gloss)
         predicted_glosses.extend(predicted_gloss)
+
+        actual_sentences.extend(actual_sentence)
+        predicted_sentences.extend(predicted_sentence)
 
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
@@ -330,7 +342,7 @@ def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
     )
 
     sentences = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sequence))])
+        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
         for sample in sequence
     ]
 
@@ -341,7 +353,7 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
     remove_padding = lambda x: x != gloss_to_idx["<pad>"]
 
     sequence = [
-        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sequence))])
+        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sample))])
         for sample in sequence
     ]
     return sequence

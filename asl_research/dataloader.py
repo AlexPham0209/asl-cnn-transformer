@@ -20,7 +20,7 @@ from torchvision.transforms.v2 import UniformTemporalSubsample
 # mean = (0.53724027, 0.5272855, 0.51954997)
 # std = (1, 1, 1)
 
-mean = ((0.485, 0.456, 0.406),)
+mean = (0.485, 0.456, 0.406)
 std = (0.229, 0.224, 0.225)
 
 
