@@ -59,7 +59,7 @@ class ASLModel(nn.Module):
 
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
-
+        
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 

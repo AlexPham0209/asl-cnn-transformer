@@ -65,7 +65,7 @@ class BaseTransformer(nn.Module):
 
         # # Convert the sequences from (sequence_size) to (batch, sequence_size)
         # src = src.unsqueeze(0)
-
+        
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
 

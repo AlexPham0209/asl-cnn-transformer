@@ -94,7 +94,7 @@ def train(config: dict):
     # Creating optimizer and 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    early_stopping = EarlyStopping(patience=3, delta=0.05)
+    early_stopping = EarlyStopping(patience=config["patience"], delta=config["delta"])
 
 
     # Loading hyperparameters
@@ -108,8 +108,8 @@ def train(config: dict):
     file_name = training_config["file_name"]
 
     curr_epoch = 1
-
     if len(load_path) > 0:
+        assert os.path.exists(load_path) 
         print("Loading checkpoint...")
         checkpoint = torch.load(load_path, weights_only=False)
         curr_epoch = checkpoint["epoch"] + 1
@@ -135,7 +135,6 @@ def train(config: dict):
     )
     print(f"Valid Average loss: {valid_loss:>8f}")
     print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
-    torch.cuda.empty_cache()
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
@@ -291,6 +290,9 @@ def validate(
         gloss_lengths = gloss_lengths.to(DEVICE)
         sentences = sentences.to(DEVICE)
 
+        print(glosses)
+        print(gloss_lengths)
+
         encoder_out, decoder_out = model.greedy_decode(videos)
 
         # Convert output tensors into strings
@@ -303,7 +305,7 @@ def validate(
         # Add to collection of sentences and glosses for WER calculation
         actual_glosses.extend(actual_gloss)
         predicted_glosses.extend(predicted_gloss)
-
+        
         actual_sentences.extend(actual_sentence)
         predicted_sentences.extend(predicted_sentence)
 

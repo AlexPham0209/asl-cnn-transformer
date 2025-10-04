@@ -87,11 +87,12 @@ class PhoenixDataset(Dataset):
         )
 
         # Load video from path and transpose time and batch dimensions
+        assert os.path.exists(path)
         video: EncodedVideo = EncodedVideo.from_path(path)
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         video_data = self.transform(video_data)
-
+        
         return (
             video_data,
             gloss_tokens,
