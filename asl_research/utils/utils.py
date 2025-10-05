@@ -134,3 +134,34 @@ def pad_video_with_last_frame(x: Tensor, length: int = 100):
     out = x[-1].repeat(length, 1, 1, 1)
     out[:T] = x
     return out
+
+
+def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
+    assert "<pad>" in word_to_idx
+    assert "<eos>" in word_to_idx
+    assert "<sos>" in word_to_idx
+
+    remove_special_tokens = (
+        lambda token: token != word_to_idx["<pad>"]
+        and token != word_to_idx["<eos>"]
+        and token != word_to_idx["<sos>"]
+    )
+
+    sentences = [
+        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
+        for sample in sequence
+    ]
+
+    return sentences
+
+
+def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
+    assert "<pad>" in gloss_to_idx
+    
+    remove_padding = lambda x: x != gloss_to_idx["<pad>"]
+
+    sequence = [
+        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sample))])
+        for sample in sequence
+    ]
+    return sequence

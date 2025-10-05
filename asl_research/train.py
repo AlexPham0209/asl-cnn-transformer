@@ -4,7 +4,7 @@ import time
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
-from torch.nn.functional import log_softmax
+from torch.nn.functional import log_softmax, softmax
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
@@ -15,7 +15,7 @@ from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import generate_padding_mask
+from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
@@ -191,8 +191,6 @@ def train(config: dict):
             print("Early stopping")
             break
 
-        torch.cuda.empty_cache()
-
     # Plot model's loss over epochs
     plt.title("Model Loss")
     plt.ylabel("Loss")
@@ -243,10 +241,10 @@ def train_epoch(
         # Decoder loss
         translation_loss = 0.0
         if train_translation:
-            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = cross_entropy_loss(actual, expected)
-
+        
         # Calculating the joint loss
         loss = recognition_loss + translation_loss
         losses += loss.item()
@@ -322,7 +320,7 @@ def validate(
         # Decoder loss
         translation_loss = 0.0
         if validate_translation:
-            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]))
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = cross_entropy_loss(actual, expected)
 
@@ -333,29 +331,7 @@ def validate(
     return losses / len(data), word_error_rate(actual_glosses, predicted_glosses)
 
 
-def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
-    remove_special_tokens = (
-        lambda token: token != word_to_idx["<pad>"]
-        and token != word_to_idx["<eos>"]
-        and token != word_to_idx["<sos>"]
-    )
 
-    sentences = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in sequence
-    ]
-
-    return sentences
-
-
-def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
-    remove_padding = lambda x: x != gloss_to_idx["<pad>"]
-
-    sequence = [
-        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sample))])
-        for sample in sequence
-    ]
-    return sequence
 
 
 def main():

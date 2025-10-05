@@ -1,9 +1,12 @@
 import math
+from matplotlib import pyplot as plt
 import pytest
 import torch 
 from asl_research.dataloader import PhoenixDataset
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
+
+from asl_research.utils.utils import decode_glosses, decode_sentences
 
 
 def test_dataset():
@@ -39,3 +42,16 @@ def test_dataset_split():
     assert len(train_set) == math.floor(0.8 * len(dataset))
     assert len(valid_set) == math.floor(0.1 * len(dataset))
     assert len(test_set) == math.floor(0.1 * len(dataset))
+
+
+if __name__ == "__main__":
+    dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
+
+    for i in range(5):
+        videos, gloss_sequences, gloss_lengths, sentences = next(iter(dataloader))
+        plt.imshow(videos[0][0].permute(1, 2, 0))
+        print(decode_glosses(gloss_sequences.tolist(), dataset.gloss_to_idx, dataset.idx_to_gloss))
+        print(gloss_lengths)
+        print(decode_sentences(sentences.tolist(), dataset.word_to_idx, dataset.idx_to_word))
+        plt.show()

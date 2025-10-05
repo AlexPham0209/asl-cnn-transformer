@@ -34,7 +34,7 @@ training:
   delta: 0.01
 
   # Misc.
-  num_workers: 4
+  num_workers: 2
   num_frames: 120
 
 testing:

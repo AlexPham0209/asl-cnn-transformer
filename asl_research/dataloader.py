@@ -61,7 +61,7 @@ class PhoenixDataset(Dataset):
                 Normalize(mean, std),
                 Resize((256, 256)),
                 RandomCrop(target_size),
-                ColorJitter(brightness=(0.5, 1.0), hue=0.2),
+                ColorJitter(brightness=(0.5, 1.0), hue=0.1),
             ]
         )
 

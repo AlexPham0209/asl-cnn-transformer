@@ -18,11 +18,12 @@ def main():
     except FileExistsError:
         print(f"Directory '{"phoenixweather2014t"}' already exists.")
     
-    # Downloading from the link and unzipping in both the processed and external directory
+    # Downloading zip files from the link 
     print("Downloading Phoenix Dataset...")
     r = requests.get(PHOENIX_2014_T_LINK, stream=True)
     z = zipfile.ZipFile(io.BytesIO(r.content))
-
+        
+    # Extracting contents into the processed and external directory
     print("Extracting contents...")
     z.extractall(os.path.join(EXTERNAL_DATA_PATH, "phoenixweather2014t"))
     z.extractall(os.path.join(PROCESSED_DATA_PATH, "phoenixweather2014t"))

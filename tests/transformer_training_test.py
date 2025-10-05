@@ -49,7 +49,7 @@ def train_epoch(
 
         actual = out.reshape(-1, out.shape[-1])
         expected = trg[:, 1:].reshape(-1)
-
+        
         loss = criterion(actual, expected)
         losses += loss.item()
         loss.backward()
