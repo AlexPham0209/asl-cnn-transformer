@@ -9,13 +9,13 @@ model:
 training:
   # Basic hyperparameters
   epochs: 150
-  batch_size: 8
+  batch_size: 32
   lr: 1e-4
-
+    
   # File path locations
   save_path: 'models'
   file_name: 'best'
-  load_path: ''
+  load_path: 'models/best.pt'
   
   # Whether to use joint loss or not
   train_recognition: true
@@ -34,8 +34,8 @@ training:
   delta: 0.01
 
   # Misc.
-  num_workers: 2
-  num_frames: 120
+  num_workers: 16
+  num_frames: 60
 
 testing:
   load_path: 'models/best.pt'
