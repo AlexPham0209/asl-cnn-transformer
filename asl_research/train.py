@@ -94,7 +94,7 @@ def train(config: dict):
     # Creating optimizer 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    early_stopping = EarlyStopping(patience=config["patience"], delta=config["delta"])
+    early_stopping = EarlyStopping(patience=training_config["patience"], delta=training_config["delta"])
 
 
     # Loading hyperparameters
