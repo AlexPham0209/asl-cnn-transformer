@@ -1,10 +1,9 @@
 # Data
-/models/
-/model_2/
-
+/models/* 
 
 data/**
 !data/*
+
 !.gitkeep 
 
 # Mac OS-specific storage files
