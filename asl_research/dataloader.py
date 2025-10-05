@@ -52,7 +52,7 @@ class PhoenixDataset(Dataset):
 
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
-
+        
         # Data augmentation settings
         self.transform = Compose(
             [
@@ -92,7 +92,7 @@ class PhoenixDataset(Dataset):
         clip_duration = video.duration
         video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         video_data = self.transform(video_data)
-        
+
         return (
             video_data,
             gloss_tokens,
@@ -103,7 +103,7 @@ class PhoenixDataset(Dataset):
 
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
-
+    
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)

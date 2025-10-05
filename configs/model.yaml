@@ -16,10 +16,14 @@ training:
   save_path: 'models'
   file_name: 'best'
   load_path: ''
-
+  
   # Whether to use joint loss or not
   train_recognition: true
   train_translation: false
+
+  # Weights used for joint loss
+  recognition_weight: 1.0
+  translation_weight: 1.0
   
   # Random splitting seed and ration
   seed: 29

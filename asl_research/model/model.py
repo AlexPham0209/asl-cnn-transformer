@@ -26,12 +26,14 @@ class ASLModel(nn.Module):
         dropout: float = 0.1,
     ):
         super(ASLModel, self).__init__()
-
+        
+        # Vocab
         self.gloss_to_idx = gloss_to_idx
         self.idx_to_gloss = idx_to_gloss
         self.word_to_idx = word_to_idx
         self.idx_to_word = idx_to_word
 
+        # Padding tokens
         self.gloss_pad_token = gloss_to_idx["<pad>"]
         self.word_pad_token = word_to_idx["<pad>"]
 
@@ -106,7 +108,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
-
+            
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

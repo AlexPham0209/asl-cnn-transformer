@@ -1,7 +1,10 @@
 # Data
-/data/
 /models/
 /model_2/
+
+
+data/**
+!.gitkeep 
 
 # Mac OS-specific storage files
 .DS_Store
@@ -191,3 +194,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+

@@ -11,10 +11,6 @@ def test_dataset():
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
 
     videos, gloss_sequences, gloss_lengths, sentences = next(iter(dataloader))
-    print(gloss_sequences)
-    print(gloss_lengths)
-    print(sentences)
-    print()
     
     assert videos.shape == (2, 120, 3, 224, 224)
     assert gloss_lengths.shape[0] == 2

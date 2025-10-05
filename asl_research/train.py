@@ -91,7 +91,7 @@ def train(config: dict):
     ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
     cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
-    # Creating optimizer and 
+    # Creating optimizer 
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
     early_stopping = EarlyStopping(patience=config["patience"], delta=config["delta"])
@@ -239,7 +239,7 @@ def train_epoch(
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+        
         # Decoder loss
         translation_loss = 0.0
         if train_translation:
@@ -289,9 +289,6 @@ def validate(
         glosses = glosses.to(DEVICE)
         gloss_lengths = gloss_lengths.to(DEVICE)
         sentences = sentences.to(DEVICE)
-
-        print(glosses)
-        print(gloss_lengths)
 
         encoder_out, decoder_out = model.greedy_decode(videos)
 
