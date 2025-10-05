@@ -16,20 +16,21 @@ from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
 
 from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
+import os
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
-torch.cuda.empty_cache()
+PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 
 
 def train(config: dict):
     model_config = config["model"]
     training_config = config["training"]
-
     # Creating dataset and getting gloss and word vocabulary dictionaries
     dataset = PhoenixDataset(
-        root_dir="data\\processed\\phoenixweather2014t",
+        root_dir=PROCESSED_PATH,
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
     )
@@ -115,11 +116,16 @@ def train(config: dict):
         curr_epoch = checkpoint["epoch"] + 1
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        criterion = checkpoint["criterion"]
         best_loss = checkpoint["best_loss"]
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
-
+        torch.cuda.empty_cache()
+    
+    if torch.cuda.device_count() > 1:
+      print("Let's use", torch.cuda.device_count(), "GPUs!")
+      model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model.to(DEVICE)
+    
     # Start training
     valid_loss, valid_wer = validate(
         model,
@@ -288,22 +294,22 @@ def validate(
         gloss_lengths = gloss_lengths.to(DEVICE)
         sentences = sentences.to(DEVICE)
 
-        encoder_out, decoder_out = model.greedy_decode(videos)
+        # encoder_out, decoder_out = model.module.greedy_decode(videos)
 
-        # Convert output tensors into strings
-        actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
-        predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+        # # Convert output tensors into strings
+        # actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+        # predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 
-        actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
-        predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
+        # actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
+        # predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
 
-        # Add to collection of sentences and glosses for WER calculation
-        actual_glosses.extend(actual_gloss)
-        predicted_glosses.extend(predicted_gloss)
+        # # Add to collection of sentences and glosses for WER calculation
+        # actual_glosses.extend(actual_gloss)
+        # predicted_glosses.extend(predicted_gloss)
         
-        actual_sentences.extend(actual_sentence)
-        predicted_sentences.extend(predicted_sentence)
-
+        # actual_sentences.extend(actual_sentence)
+        # predicted_sentences.extend(predicted_sentence)
+        
         # Should outpust the encoder output
         # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # decoder_out: (batch_size, sentence_length, word_vocab_size)
@@ -330,14 +336,10 @@ def validate(
 
     return losses / len(data), word_error_rate(actual_glosses, predicted_glosses)
 
-
-
-
-
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
-
+    
     train(config)
 
 

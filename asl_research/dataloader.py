@@ -35,11 +35,11 @@ class PhoenixDataset(Dataset):
         self.dataset_path = os.path.join(root_dir, "dataset.csv")
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
-
+        
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
-
+            
         self.df = pd.read_csv(self.dataset_path)
         self.vocab = json.load(open(self.vocab_path))
 
