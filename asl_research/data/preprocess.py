@@ -90,6 +90,7 @@ def main():
 
     paths = video_path(train) + video_path(test) + video_path(dev)
     df = pd.DataFrame({"paths": paths, "glosses": glosses, "texts": texts})
+    df = df.head(n=20)
 
     # Removing duplicate rows
     print("Removing duplicates and dropping missing information...")
@@ -129,7 +130,7 @@ def main():
         )
     )
     df["frames"] = frames
-    
+
     print("Splitting .mp4 into JPEG frames...")
     video_paths = list(
         map(

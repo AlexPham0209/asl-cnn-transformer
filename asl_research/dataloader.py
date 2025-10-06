@@ -16,6 +16,7 @@ from torchvision.transforms import (
     Normalize,
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
+from torchvision.io import decode_image, read_file, decode_jpeg
 
 # mean = (0.53724027, 0.5272855, 0.51954997)
 # std = (1, 1, 1)
@@ -28,6 +29,7 @@ class PhoenixDataset(Dataset):
     def __init__(
         self,
         root_dir: str,
+        device,
         num_frames: int = 120,
         target_size: tuple = (224, 224),
     ):
@@ -36,11 +38,12 @@ class PhoenixDataset(Dataset):
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
+        self.device = device
         
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
-            
+        
         self.df = pd.read_csv(self.dataset_path)
         self.vocab = json.load(open(self.vocab_path))
 
@@ -76,6 +79,7 @@ class PhoenixDataset(Dataset):
         # Reading information from row entry in the dataframe
         item = self.df.iloc[index]
         path = os.path.join(self.video_dir, item["paths"])
+        processed_path = os.path.join(self.processed_video_dir, item["processed_paths"])
         glosses = item["glosses"]
         sentence = item["texts"]
 
@@ -88,10 +92,14 @@ class PhoenixDataset(Dataset):
         )
 
         # Load video from path and transpose time and batch dimensions
-        assert os.path.exists(path)
-        video: EncodedVideo = EncodedVideo.from_path(path)
-        clip_duration = video.duration
-        video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
+        # assert os.path.exists(path)
+        # video: EncodedVideo = EncodedVideo.from_path(path)
+        # clip_duration = video.duration
+        # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
+        # video_data = self.transform(video_data)
+        
+        assert os.path.exists(processed_path)
+        video_data = self.read_video(processed_path)
         video_data = self.transform(video_data)
 
         return (
@@ -105,6 +113,20 @@ class PhoenixDataset(Dataset):
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
     
+    def read_video(self, path: str):
+        frames = []
+        for frame in os.listdir(path):
+            frame = os.path.join(path, frame)
+
+            if not frame.endswith(".jpg"):
+                continue
+            
+            frame = decode_jpeg(read_file(frame), device=self.device)
+            frames.append(frame)
+
+        return torch.stack(frames, dim=0)
+
+
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)

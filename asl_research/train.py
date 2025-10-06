@@ -33,6 +33,7 @@ def train(config: dict):
         root_dir=PROCESSED_PATH,
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
+        device=DEVICE,
     )
 
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
