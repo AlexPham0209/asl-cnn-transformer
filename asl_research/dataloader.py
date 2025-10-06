@@ -121,12 +121,11 @@ class PhoenixDataset(Dataset):
             if not frame.endswith(".jpg"):
                 continue
             
-            # frame = decode_jpeg(read_file(frame), device=self.device)
             frames.append(read_file(frame))
 
         return torch.stack(decode_jpeg(frames, device=self.device), dim=0)
 
-
+    
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
