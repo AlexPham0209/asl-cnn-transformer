@@ -111,5 +111,5 @@ class ASLModel(nn.Module):
             
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
-
+        
         return encoded, sequence

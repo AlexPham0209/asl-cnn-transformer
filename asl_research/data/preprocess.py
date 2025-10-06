@@ -13,13 +13,34 @@ from scipy import stats
 EXTERNAL_PATH = os.path.join("data", "external", "phoenixweather2014t")
 PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 VIDEO_PATH = os.path.join(EXTERNAL_PATH, "videos_phoenix", "videos")
-
+PROCESSED_VIDEO_PATH = os.path.join(PROCESSED_PATH, "processed_videos")
 
 def with_opencv(filename):
     video = cv2.VideoCapture(filename)
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
-
+        
     return frame_count
+
+def convert_to_frames(path):
+    video = cv2.VideoCapture(path)
+    folder_name = os.path.basename(path).split(".")[0]
+    folder_path = os.path.join(PROCESSED_VIDEO_PATH, folder_name)
+    try:
+        os.mkdir(folder_path)
+        print(f"Directory '{folder_name}' created successfully.")
+    except FileExistsError:
+        print(f"Directory '{folder_name}' already exists.")
+    
+    success, image = video.read()
+    count = 0
+
+    while success:
+        cv2.imwrite(os.path.join(folder_path, f"frame_{count}.jpg"), image)     # save frame as JPEG file      
+        success, image = video.read()
+        count += 1
+
+    return os.path.basename(folder_path)
+    
 
 
 def video_path(set):
@@ -32,7 +53,14 @@ def video_path(set):
 
 
 def main():
+    try:
+        os.mkdir(PROCESSED_VIDEO_PATH)
+        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' created successfully.")
+    except FileExistsError:
+        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' already exists.")
+    
     # Load dataset
+    print("Loading dataset...")
     with gzip.open(
         os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb"
     ) as f:
@@ -64,12 +92,14 @@ def main():
     df = pd.DataFrame({"paths": paths, "glosses": glosses, "texts": texts})
 
     # Removing duplicate rows
+    print("Removing duplicates and dropping missing information...")
     df = df.drop_duplicates()
 
     # Removing rows with missing information
     df = df.dropna()
 
     # Make text lowercase and glosses uppercase
+    print("Preprocessing text and glosses...")
     df["texts"] = df["texts"].str.lower()
     df["glosses"] = df["glosses"].str.upper()
 
@@ -89,7 +119,9 @@ def main():
         df["paths"].astype(str).map(lambda file: os.path.exists(os.path.join(VIDEO_PATH, file)))
     ]
 
+
     # Creating new columns for the number of frames
+    print("Create frame count column...")
     frames = list(
         map(
             lambda x: with_opencv(x),
@@ -97,10 +129,21 @@ def main():
         )
     )
     df["frames"] = frames
+    
+    print("Splitting .mp4 into JPEG frames...")
+    video_paths = list(
+        map(
+            lambda x: convert_to_frames(x),
+            list([os.path.join(VIDEO_PATH, path) for path in list(df["paths"])]),
+        )
+    )
+
+    df["processed_paths"] = video_paths
 
     # Filter outliers outside of 3 standard deviations
     df = df[np.abs(stats.zscore(df["frames"])) < 3]
 
+    print("Creating vocabulary...")
     # Create vocabulary for gloss sequences and words
     gloss_count = Counter(
         itertools.chain.from_iterable([sequence.split() for sequence in df["glosses"]])
@@ -117,7 +160,8 @@ def main():
     )
 
     vocab = {"glosses": gloss_list, "words": word_list}
-
+    
+    print("Saving vocabulary and data frame...")
     # Saving vocab and dataset
     with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:
         json.dump(vocab, f, indent=4)

@@ -1,4 +1,10 @@
 {
     "python.testing.unittestEnabled": false,
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [
+        {
+            "path": "data/processed/phoenixweather2014t/processed_videos",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
 }
