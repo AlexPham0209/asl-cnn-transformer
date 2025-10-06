@@ -115,7 +115,7 @@ class PhoenixDataset(Dataset):
     
     def read_video(self, path: str):
         frames = []
-        for frame in os.listdir(path):
+        for frame in sorted(os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))):
             frame = os.path.join(path, frame)
 
             if not frame.endswith(".jpg"):
