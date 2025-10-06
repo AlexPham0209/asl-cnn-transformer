@@ -97,7 +97,7 @@ class PhoenixDataset(Dataset):
         # clip_duration = video.duration
         # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         # video_data = self.transform(video_data)
-        
+
         assert os.path.exists(processed_path)
         video_data = self.read_video(processed_path)
         video_data = self.transform(video_data)
@@ -121,10 +121,10 @@ class PhoenixDataset(Dataset):
             if not frame.endswith(".jpg"):
                 continue
             
-            frame = decode_jpeg(read_file(frame), device=self.device)
-            frames.append(frame)
+            # frame = decode_jpeg(read_file(frame), device=self.device)
+            frames.append(read_file(frame))
 
-        return torch.stack(frames, dim=0)
+        return torch.stack(decode_jpeg(frames, device=self.device), dim=0)
 
 
     @staticmethod
