@@ -111,10 +111,6 @@ def train(config: dict):
 
     curr_epoch = 1
 
-    # if torch.cuda.device_count() > 1:
-    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
-    #     model = nn.DataParallel(model)
-    # model.to(DEVICE)
 
     if len(load_path) > 0:
         assert os.path.exists(load_path)
@@ -128,6 +124,11 @@ def train(config: dict):
         valid_loss_history = checkpoint["valid_loss_history"]
         torch.cuda.empty_cache()
 
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+    model.to(DEVICE)
+    
     # Start training
     # valid_loss, valid_wer = validate(
     #     model,
@@ -182,6 +183,7 @@ def train(config: dict):
         if valid_loss < best_loss:
             best_loss = valid_loss
             print("\nNew best model, saving...")
+            model_state_dict = model.module.state_dict() if isinstance(nn.DataParallel) else model.state_dict()
             torch.save(
                 {
                     "epoch": epoch,

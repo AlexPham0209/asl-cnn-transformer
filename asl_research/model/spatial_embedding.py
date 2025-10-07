@@ -134,20 +134,30 @@ class Conv1DBlock(nn.Module):
 
 
 class SpatialEmbedding(nn.Module):
-    def __init__(self, d_model: int = 512, hidden_size: int = 256, dropout: float = 0.1):
+    def __init__(self, d_model: int = 512, hidden_size: int = 256, dropout: float = 0.1, model: str = "efficientnet_b0"):
         super(SpatialEmbedding, self).__init__()
 
-        # ResNet-50 and freezing all the weights
-        self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+        # Initializing the model based on our model parameter and freezing all the weights
+        self.conv = None
+        match model:
+            case "efficientnet_b0":
+                self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+            case "resnet50":
+                self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+
         # self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
         
-        # Replacing final classification layer with our own
-        self.conv.classifier[1] = nn.Linear(self.conv.classifier[1].in_features, hidden_size)
-        # self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-        self.ff = nn.Linear(hidden_size, d_model)
+        # Replacing final classification layer with our own depending on what model we choose
+        match model:
+            case "efficientnet_b0":
+                self.conv.classifier[1] = nn.Linear(self.conv.classifier[1].in_features, hidden_size)
+            case "resnet50":
+                self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         
+        self.ff = nn.Linear(hidden_size, d_model)
+
     def forward(self, x: Tensor):
         """
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)

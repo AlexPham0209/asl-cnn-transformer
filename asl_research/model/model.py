@@ -58,7 +58,7 @@ class ASLModel(nn.Module):
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-
+        
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
 
