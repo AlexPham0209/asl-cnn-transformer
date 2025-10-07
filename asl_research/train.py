@@ -48,7 +48,7 @@ class Trainer:
     def __init__(
         self,
         model: ASLModel,
-        vocab: (dict, dict, dict, dict),
+        vocab: tuple[dict, dict, dict, dict],
         train_dl: DataLoader,
         valid_dl: DataLoader,
         test_dl: DataLoader,
@@ -56,7 +56,7 @@ class Trainer:
         scheduler: LRScheduler,
         early_stopping: EarlyStopping,
         training_config: dict,
-        gpu_id: int,
+        gpu_id: int
     ):
         self.model = model.to(gpu_id)
         self.gpu_id = gpu_id
@@ -70,19 +70,6 @@ class Trainer:
         self.valid_dl = valid_dl
         self.test_dl = test_dl
 
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-        self.early_stopping = early_stopping
-        self.model = DistributedDataParallel(model, device_ids=[gpu_id])
-
-        # Creating the losses used for recognition and translation
-        self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
-
-        # Set up loss weights
-        self.recognition_weight = training_config["recognition_weight"]
-        self.translation_weight = training_config["translation_weight"]
-        
         # Set up training settings
         self.best_loss = torch.inf
         self.train_loss_history = []
@@ -94,7 +81,27 @@ class Trainer:
         self.save_path = training_config["save_path"]
         self.load_path = training_config["load_path"]
         self.file_name = training_config["file_name"]
+        self.diagram_path = training_config["diagram_path"]
 
+        # Set up loss weights
+        self.recognition_weight = training_config["recognition_weight"]
+        self.translation_weight = training_config["translation_weight"]
+
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.early_stopping = early_stopping
+
+        # Load checkpoint
+        self._load_checkpoint()
+
+        # Convert model into DistributedDataParallel model using GPU {gpu_id}
+        self.model = DistributedDataParallel(model, device_ids=[gpu_id])
+
+        # Creating the losses used for recognition and translation
+        self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
+        self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
+
+    
     def train(self):
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
@@ -107,8 +114,6 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate()
-        
-           
         
             # Saving model
             if valid_loss < self.best_loss and self.gpu_id == 0:
@@ -138,7 +143,7 @@ class Trainer:
                 print("Early stopping")
                 break
 
-    def _train_epoch(self, epoch):
+    def _train_epoch(self, epoch: int):
         self.model.train()
         losses = 0.0
         recognition_losses = 0.0
@@ -154,12 +159,12 @@ class Trainer:
             # Should output the encoder output
             # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
             # decoder_out: (batch_size, video_length, word_vocab_size)
-            encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
+            encoder_out, decoder_out = self.model(videos, sentences[:, :-1]).to(self.gpu_id)
             
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
             # Decoder loss
@@ -258,25 +263,25 @@ class Trainer:
         )
 
     def _load_checkpoint(self):
-        assert os.path.exists(self.load_path)
+        if len(self.load_path) <= 0:
+            return
+        
+        assert os.path.exists(self.load_path), "Load path doesn't exist"
         print("Loading checkpoint...")
         checkpoint = torch.load(self.load_path, weights_only=False)
         self.curr_epoch = checkpoint["epoch"] + 1
-        if self.gpu_id != 0:
-            self.model.load_state_dict(checkpoint["model_state_dict"])
-            
+        self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.best_loss = checkpoint["best_loss"]
         self.train_loss_history = checkpoint["train_loss_history"]
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
-    def _save_checkpoint(self, epoch, valid_loss):
+    def _save_checkpoint(self, epoch: int, valid_loss: float):
         if valid_loss < self.best_loss and self.gpu_id != 0:
             return
 
         self.best_loss = valid_loss
         print("\nNew best model, saving...")
-        model_state_dict = self.model.module.state_dict()
         torch.save(
             {
                 "epoch": epoch,
@@ -290,6 +295,10 @@ class Trainer:
         )
 
     def _save_diagrams(self):
+        if self.gpu_id == 0:
+            return
+        
+        assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
         plt.title("Model Loss")
         plt.ylabel("Loss")
         plt.xlabel("Epoch")
@@ -299,7 +308,7 @@ class Trainer:
         plt.plot(self.valid_loss_history, label="valid")
         plt.legend(["train", "valid"], loc="upper left")
     
-        plt.show()
+        plt.savefig(os.path.join(self.diagram_path, 'figure.png'))
 
 
 def create_dataloaders(path: str, training_config: dict):
@@ -362,7 +371,6 @@ def create_dataloaders(path: str, training_config: dict):
     
 
 def start_training(rank: int, world_size: int, config: dict):
-    print("SPAWN")
     ddp_setup(rank, world_size)
     model_config = config["model"]
     training_config = config["training"]
@@ -413,11 +421,10 @@ def start_training(rank: int, world_size: int, config: dict):
     trainer.train()
     destroy_process_group()
 
-
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
-
+    
     world_size = torch.cuda.device_count()
     print(f"Current World Size: {world_size}")
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)

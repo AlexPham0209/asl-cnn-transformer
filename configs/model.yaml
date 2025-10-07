@@ -16,6 +16,7 @@ training:
   save_path: 'models'
   file_name: 'best2'
   load_path: ''
+  diagram_paths: ''
     
   # Weights used for joint loss
   recognition_weight: 1.0
