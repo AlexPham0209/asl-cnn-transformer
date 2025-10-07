@@ -143,9 +143,9 @@ class SpatialEmbedding(nn.Module):
             param.requires_grad = False
 
         # Replacing final classification layer with our own
-        self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
+        self.conv.classifier[1] = nn.Linear(1280, hidden_size)
         self.ff = nn.Linear(hidden_size, d_model)
-
+    
     def forward(self, x: Tensor):
         """
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)

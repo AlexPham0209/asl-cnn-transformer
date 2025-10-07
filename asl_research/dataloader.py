@@ -112,7 +112,7 @@ class PhoenixDataset(Dataset):
 
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
-
+    
     def read_video(self, path: str):
         frames = []
         for frame in sorted(

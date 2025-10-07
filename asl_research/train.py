@@ -272,7 +272,7 @@ def train_epoch(
         translation_losses += translation_loss.item()
         loss = recognition_loss + translation_loss
         losses += loss.item()
-        
+
         loss.backward()
         optimizer.step()
 
@@ -337,7 +337,7 @@ def validate(
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+    
         # Decoder loss
         translation_loss = torch.tensor(0.0)
         if validate_translation:
