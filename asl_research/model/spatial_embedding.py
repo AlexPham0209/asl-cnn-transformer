@@ -134,7 +134,13 @@ class Conv1DBlock(nn.Module):
 
 
 class SpatialEmbedding(nn.Module):
-    def __init__(self, d_model: int = 512, hidden_size: int = 256, dropout: float = 0.1, model: str = "efficientnet_b0"):
+    def __init__(
+        self,
+        d_model: int = 512,
+        hidden_size: int = 256,
+        dropout: float = 0.1,
+        model: str = "efficientnet_b0",
+    ):
         super(SpatialEmbedding, self).__init__()
 
         # Initializing the model based on our model parameter and freezing all the weights
@@ -148,14 +154,16 @@ class SpatialEmbedding(nn.Module):
         # self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
-        
+
         # Replacing final classification layer with our own depending on what model we choose
         match model:
             case "efficientnet_b0":
-                self.conv.classifier[1] = nn.Linear(self.conv.classifier[1].in_features, hidden_size)
+                self.conv.classifier[1] = nn.Linear(
+                    self.conv.classifier[1].in_features, hidden_size
+                )
             case "resnet50":
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-        
+
         self.ff = nn.Linear(hidden_size, d_model)
 
     def forward(self, x: Tensor):
@@ -172,7 +180,7 @@ class SpatialEmbedding(nn.Module):
         # Allows for the CNN to be applied to every temporal slice
         N, T, C, H, W = x.shape
         x = x.reshape(N * T, C, H, W)
-        
+
         # Using pretrained weights
         x = self.conv(x).to(x.device)
         x = self.ff(x)

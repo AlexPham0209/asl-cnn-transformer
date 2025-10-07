@@ -58,7 +58,7 @@ class ASLModel(nn.Module):
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-        
+
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
 
@@ -108,8 +108,8 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
-            
+
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
-        
+
         return encoded, sequence
