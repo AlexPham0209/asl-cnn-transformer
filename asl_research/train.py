@@ -253,7 +253,7 @@ def train_epoch(
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
-        recognition_loss = 0.0
+        recognition_loss = torch.tensor(0.0)
         if train_recognition:
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
@@ -261,18 +261,18 @@ def train_epoch(
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
-        translation_loss = 0.0
+        translation_loss = torch.tensor(0.0)
         if train_translation:
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
-        recognition_losses += recognition_loss
-        translation_losses += translation_loss
+        recognition_losses += recognition_loss.item()
+        translation_losses += translation_loss.item()
         loss = recognition_loss + translation_loss
         losses += loss.item()
-
+        
         loss.backward()
         optimizer.step()
 
@@ -293,11 +293,6 @@ def validate(
 ):
     model.eval()
 
-    remove_special_tokens = (
-        lambda token: token != word_to_idx["<pad>"]
-        and token != word_to_idx["<eos>"]
-        and token != word_to_idx["<sos>"]
-    )
     losses = 0.0
     recognition_losses = 0.0
     translation_losses = 0.0
@@ -336,23 +331,23 @@ def validate(
         encoder_out, decoder_out = model(videos, sentences[:, :-1])
 
         # Encoder loss
-        recognition_loss = 0.0
+        recognition_loss = torch.tensor(0.0)
         if validate_recognition:
-            encoder_out = log_softmax(encoder_out.transpose(0, 1), dim=-1)
+            encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
         # Decoder loss
-        translation_loss = 0.0
+        translation_loss = torch.tensor(0.0)
         if validate_translation:
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]))
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = cross_entropy_loss(actual, expected)
 
         # Calculating the joint loss
-        recognition_losses += recognition_loss
-        translation_losses += translation_loss
+        recognition_losses += recognition_loss.item()
+        translation_losses += translation_loss.item()
         loss = recognition_loss + translation_loss
         losses += loss.item()
 

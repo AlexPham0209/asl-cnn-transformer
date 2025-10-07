@@ -76,7 +76,7 @@ class ASLModel(nn.Module):
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
-    
+
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
 
@@ -111,5 +111,5 @@ class ASLModel(nn.Module):
 
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
-
+        
         return encoded, sequence
