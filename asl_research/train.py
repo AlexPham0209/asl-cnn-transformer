@@ -111,6 +111,11 @@ def train(config: dict):
 
     curr_epoch = 1
 
+    # if torch.cuda.device_count() > 1:
+    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     model = nn.DataParallel(model)
+    # model.to(DEVICE)
+
     if len(load_path) > 0:
         assert os.path.exists(load_path)
         print("Loading checkpoint...")
@@ -123,25 +128,20 @@ def train(config: dict):
         valid_loss_history = checkpoint["valid_loss_history"]
         torch.cuda.empty_cache()
 
-    if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
-    model.to(DEVICE)
-
     # Start training
-    valid_loss, valid_wer = validate(
-        model,
-        valid_dl,
-        ctc_loss,
-        cross_entropy_loss,
-        gloss_to_idx,
-        idx_to_gloss,
-        word_to_idx,
-        idx_to_word,
-        training_config["train_recognition"],
-        training_config["train_translation"],
-    )
-    print(f"Valid Average loss: {valid_loss:>8f}")
+    # valid_loss, valid_wer = validate(
+    #     model,
+    #     valid_dl,
+    #     ctc_loss,
+    #     cross_entropy_loss,
+    #     gloss_to_idx,
+    #     idx_to_gloss,
+    #     word_to_idx,
+    #     idx_to_word,
+    #     training_config["train_recognition"],
+    #     training_config["train_translation"],
+    # )
+    # print(f"Valid Average loss: {valid_loss:>8f}")
     # print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
@@ -185,7 +185,7 @@ def train(config: dict):
             torch.save(
                 {
                     "epoch": epoch,
-                    "model_state_dict": model.module.state_dict(),
+                    "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "best_loss": best_loss,
                     "train_loss_history": train_loss_history,

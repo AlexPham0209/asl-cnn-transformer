@@ -139,13 +139,15 @@ class SpatialEmbedding(nn.Module):
 
         # ResNet-50 and freezing all the weights
         self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+        # self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
-
+        
         # Replacing final classification layer with our own
-        self.conv.classifier[1] = nn.Linear(1280, hidden_size)
+        self.conv.classifier[1] = nn.Linear(self.conv.classifier[1].in_features, hidden_size)
+        # self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         self.ff = nn.Linear(hidden_size, d_model)
-    
+        
     def forward(self, x: Tensor):
         """
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
@@ -160,9 +162,9 @@ class SpatialEmbedding(nn.Module):
         # Allows for the CNN to be applied to every temporal slice
         N, T, C, H, W = x.shape
         x = x.reshape(N * T, C, H, W)
-
+        
         # Using pretrained weights
-        x = self.conv(x)
+        x = self.conv(x).to(x.device)
         x = self.ff(x)
 
         # Reshaping the output of the Resnet
