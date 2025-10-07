@@ -84,7 +84,7 @@ class Trainer:
         # Set up loss weights
         self.recognition_weight = training_config["recognition_weight"]
         self.translation_weight = training_config["translation_weight"]
-
+        
         # Set up training settings
         self.best_loss = torch.inf
         self.train_loss_history = []
@@ -273,6 +273,9 @@ class Trainer:
         torch.cuda.empty_cache()
 
     def _save_checkpoint(self, epoch, valid_loss):
+        if valid_loss < self.best_loss and self.gpu_id != 0:
+            return
+
         self.best_loss = valid_loss
         print("\nNew best model, saving...")
         model_state_dict = self.model.module.state_dict()
@@ -402,3 +405,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+s
