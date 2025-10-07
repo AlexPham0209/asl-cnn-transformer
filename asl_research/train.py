@@ -201,7 +201,7 @@ class Trainer:
         actual_glosses = []
         predicted_glosses = []
 
-        for videos, glosses, gloss_lengths, sentences in tqdm(self.valid_test, desc=f"Validating"):
+        for videos, glosses, gloss_lengths, sentences in tqdm(self.valid_dl, desc=f"Validating"):
             videos = videos.to(DEVICE)
             glosses = glosses.to(DEVICE)
             gloss_lengths = gloss_lengths.to(DEVICE)
@@ -300,7 +300,7 @@ class Trainer:
         plt.plot(self.train_loss_history, label="train")
         plt.plot(self.valid_loss_history, label="valid")
         plt.legend(["train", "valid"], loc="upper left")
-
+    
         plt.show()
 
 
@@ -401,8 +401,7 @@ def main():
         config = yaml.safe_load(file)
 
     world_size = torch.cuda.device_count()
-    mp.spawn(main, args=(world_size, config), nprocs=world_size)
+    mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
 
 if __name__ == "__main__":
     main()
-s

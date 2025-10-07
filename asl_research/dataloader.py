@@ -53,10 +53,10 @@ class PhoenixDataset(Dataset):
         # Create dictionaries to convert string tokens into their ids and vice versa
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
-
+    
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
-
+        
         # Data augmentation settings
         self.transform = Compose(
             [
@@ -74,7 +74,7 @@ class PhoenixDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
-
+            
     def __getitem__(self, index):
         # Reading information from row entry in the dataframe
         item = self.df.iloc[index]
