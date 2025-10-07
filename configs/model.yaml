@@ -9,7 +9,7 @@ model:
 training:
   # Basic hyperparameters
   epochs: 150
-  batch_size: 32
+  batch_size: 8
   lr: 1e-4
     
   # File path locations
@@ -30,6 +30,7 @@ training:
   delta: 0.01
 
   # Misc.
+  num_workers: 4
   num_frames: 60
 
 testing:

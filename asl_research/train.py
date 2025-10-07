@@ -109,9 +109,7 @@ class Trainer:
                 valid_sentence_wer,
             ) = self._validate()
         
-            # Adding to training and validation history
-            self.train_loss_history.append(train_loss)
-            self.valid_loss_history.append(valid_loss)
+           
         
             # Saving model
             if valid_loss < self.best_loss and self.gpu_id == 0:
@@ -119,6 +117,10 @@ class Trainer:
 
             total_time = time.time() - start_time
 
+            # Adding to training and validation history
+            self.train_loss_history.append(train_loss)
+            self.valid_loss_history.append(valid_loss)
+            
             # Showing metrics
             print(f"\nEpoch Time: {total_time:.1f} seconds")
             print(f"Training Average Recognition Loss: {train_recognition_loss:>8f}")
@@ -142,10 +144,7 @@ class Trainer:
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
-
-        for videos, glosses, gloss_lengths, sentences in tqdm(
-            self.train_dl, desc=f"Epoch {epoch}"
-        ):
+        for videos, glosses, gloss_lengths, sentences in tqdm(self.train_dl, desc=f"GPU {self.gpu_id} Epoch {epoch}", position=self.gpu_id):
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
@@ -157,7 +156,7 @@ class Trainer:
             # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
             # decoder_out: (batch_size, video_length, word_vocab_size)
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
@@ -170,8 +169,8 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected)
             
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item()
-            translation_losses += translation_loss.item()
+            # recognition_losses += recognition_loss.item()
+            # translation_losses += translation_loss.item()
             loss = (
                 self.recognition_weight * recognition_loss
                 + self.translation_weight * translation_loss
@@ -200,7 +199,7 @@ class Trainer:
         actual_glosses = []
         predicted_glosses = []
 
-        for videos, glosses, gloss_lengths, sentences in tqdm(self.valid_dl, desc=f"Validating"):
+        for videos, glosses, gloss_lengths, sentences in tqdm(self.valid_dl, desc=f"GPU {self.gpu_id} Validating", position=self.gpu_id):
             videos = videos.to(DEVICE)
             glosses = glosses.to(DEVICE)
             gloss_lengths = gloss_lengths.to(DEVICE)
@@ -264,7 +263,9 @@ class Trainer:
         print("Loading checkpoint...")
         checkpoint = torch.load(self.load_path, weights_only=False)
         self.curr_epoch = checkpoint["epoch"] + 1
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        if self.gpu_id != 0:
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.best_loss = checkpoint["best_loss"]
         self.train_loss_history = checkpoint["train_loss_history"]
@@ -336,6 +337,7 @@ def create_dataloaders(path: str, training_config: dict):
     train_dl = DataLoader(
         train_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(train_set)
@@ -343,6 +345,7 @@ def create_dataloaders(path: str, training_config: dict):
     valid_dl = DataLoader(
         valid_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(valid_set)
@@ -350,6 +353,7 @@ def create_dataloaders(path: str, training_config: dict):
     test_dl = DataLoader(
         test_set,
         batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(test_set)
@@ -359,6 +363,7 @@ def create_dataloaders(path: str, training_config: dict):
     
 
 def start_training(rank: int, world_size: int, config: dict):
+    print("SPAWN")
     ddp_setup(rank, world_size)
     model_config = config["model"]
     training_config = config["training"]
@@ -384,7 +389,7 @@ def start_training(rank: int, world_size: int, config: dict):
         d_model=model_config["d_model"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
-    ).to(DEVICE)
+    )
 
     # Creating optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
@@ -405,7 +410,7 @@ def start_training(rank: int, world_size: int, config: dict):
         training_config=training_config,
         gpu_id=rank
     )
-
+    
     trainer.train()
     destroy_process_group()
 
@@ -415,6 +420,7 @@ def main():
         config = yaml.safe_load(file)
 
     world_size = torch.cuda.device_count()
+    print(f"Current World Size: {world_size}")
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
 
 if __name__ == "__main__":
