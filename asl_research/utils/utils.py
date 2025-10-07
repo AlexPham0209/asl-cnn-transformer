@@ -157,7 +157,7 @@ def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
 
 def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
     assert "<pad>" in gloss_to_idx
-    
+
     remove_padding = lambda x: x != gloss_to_idx["<pad>"]
 
     sequence = [

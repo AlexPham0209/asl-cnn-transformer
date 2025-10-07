@@ -18,7 +18,7 @@ class MultiHeadAttention(nn.Module):
         self.w_v = nn.Linear(in_features=d_model, out_features=d_model)
 
         self.w_o = nn.Linear(in_features=d_model, out_features=d_model)
-        
+
         self.attention = ScaledDotProductAttention()
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None):

@@ -27,7 +27,9 @@ model_config = config["model"]
 training_config = config["training"]
 
 # Creating dataset and getting gloss and word vocabulary dictionaries
-print("tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t")
+print(
+    "tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t"
+)
 dataset = PhoenixDataset(
     root_dir="tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t",
     num_frames=training_config["num_frames"],

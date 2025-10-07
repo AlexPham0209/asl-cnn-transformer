@@ -138,7 +138,7 @@ class SpatialEmbedding(nn.Module):
         super(SpatialEmbedding, self).__init__()
 
         # ResNet-50 and freezing all the weights
-        self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+        self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
 

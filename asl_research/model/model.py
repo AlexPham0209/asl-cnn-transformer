@@ -26,7 +26,7 @@ class ASLModel(nn.Module):
         dropout: float = 0.1,
     ):
         super(ASLModel, self).__init__()
-        
+
         # Vocab
         self.gloss_to_idx = gloss_to_idx
         self.idx_to_gloss = idx_to_gloss
@@ -58,10 +58,10 @@ class ASLModel(nn.Module):
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-        
+
         src = self.encoder(src)
         trg = self.decoder(trg, src, trg_mask)
-        
+
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 
@@ -70,13 +70,13 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
-        max_len: int = 100,
+        max_len: int = 20,
     ):
         self.eval()
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
-
+    
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
 
@@ -108,8 +108,8 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
-            
+
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
-        
+
         return encoded, sequence

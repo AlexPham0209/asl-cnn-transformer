@@ -65,7 +65,7 @@ class BaseTransformer(nn.Module):
 
         # # Convert the sequences from (sequence_size) to (batch, sequence_size)
         # src = src.unsqueeze(0)
-        
+
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
 
@@ -81,7 +81,7 @@ class BaseTransformer(nn.Module):
         for t in range(1, max_len):
             out = sequence[:, :t]
             trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)
-            
+
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)

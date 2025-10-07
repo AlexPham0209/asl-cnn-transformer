@@ -15,11 +15,13 @@ PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 VIDEO_PATH = os.path.join(EXTERNAL_PATH, "videos_phoenix", "videos")
 PROCESSED_VIDEO_PATH = os.path.join(PROCESSED_PATH, "processed_videos")
 
+
 def with_opencv(filename):
     video = cv2.VideoCapture(filename)
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
-        
+
     return frame_count
+
 
 def convert_to_frames(path):
     video = cv2.VideoCapture(path)
@@ -30,17 +32,18 @@ def convert_to_frames(path):
         print(f"Directory '{folder_name}' created successfully.")
     except FileExistsError:
         print(f"Directory '{folder_name}' already exists.")
-    
+
     success, image = video.read()
     count = 0
 
     while success:
-        cv2.imwrite(os.path.join(folder_path, f"frame_{count}.jpg"), image)     # save frame as JPEG file      
+        cv2.imwrite(
+            os.path.join(folder_path, f"frame_{count}.jpg"), image
+        )  # save frame as JPEG file
         success, image = video.read()
         count += 1
 
     return os.path.basename(folder_path)
-    
 
 
 def video_path(set):
@@ -58,7 +61,7 @@ def main():
         print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' created successfully.")
     except FileExistsError:
         print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' already exists.")
-    
+
     # Load dataset
     print("Loading dataset...")
     with gzip.open(
@@ -119,7 +122,6 @@ def main():
         df["paths"].astype(str).map(lambda file: os.path.exists(os.path.join(VIDEO_PATH, file)))
     ]
 
-
     # Creating new columns for the number of frames
     print("Create frame count column...")
     frames = list(
@@ -160,7 +162,7 @@ def main():
     )
 
     vocab = {"glosses": gloss_list, "words": word_list}
-    
+
     print("Saving vocabulary and data frame...")
     # Saving vocab and dataset
     with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:

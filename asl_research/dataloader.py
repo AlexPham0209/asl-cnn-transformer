@@ -39,11 +39,11 @@ class PhoenixDataset(Dataset):
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
         self.device = device
-        
+
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
-        
+
         self.df = pd.read_csv(self.dataset_path)
         self.vocab = json.load(open(self.vocab_path))
 
@@ -56,7 +56,7 @@ class PhoenixDataset(Dataset):
 
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
-        
+
         # Data augmentation settings
         self.transform = Compose(
             [
@@ -112,20 +112,21 @@ class PhoenixDataset(Dataset):
 
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
-    
+
     def read_video(self, path: str):
         frames = []
-        for frame in sorted(os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))):
+        for frame in sorted(
+            os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))
+        ):
             frame = os.path.join(path, frame)
 
             if not frame.endswith(".jpg"):
                 continue
-            
+
             frames.append(read_file(frame))
 
         return torch.stack(decode_jpeg(frames, device=self.device), dim=0)
 
-    
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
