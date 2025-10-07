@@ -44,7 +44,6 @@ def ddp_setup(rank, world_size):
     torch.cuda.set_device(rank)
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
-
 class Trainer:
     def __init__(
         self,

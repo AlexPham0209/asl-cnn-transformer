@@ -93,15 +93,15 @@ class PhoenixDataset(Dataset):
         )
         
         # Load video from path and transpose time and batch dimensions
-        assert os.path.exists(path)
-        video: EncodedVideo = EncodedVideo.from_path(path)
-        clip_duration = video.duration
-        video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
-        video_data = self.transform(video_data)
-        
-        # assert os.path.exists(processed_path)
-        # video_data = self.read_video(processed_path)
+        # assert os.path.exists(path)
+        # video: EncodedVideo = EncodedVideo.from_path(path)
+        # clip_duration = video.duration
+        # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         # video_data = self.transform(video_data)
+        
+        assert os.path.exists(processed_path)
+        video_data = self.read_video(processed_path)
+        video_data = self.transform(video_data)
         
         return (
             video_data,
@@ -127,7 +127,7 @@ class PhoenixDataset(Dataset):
             frames.append(read_file(frame))
         
         return torch.stack(decode_jpeg(frames), dim=0)
-
+        
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
