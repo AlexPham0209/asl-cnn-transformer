@@ -28,6 +28,7 @@ std = (0.229, 0.224, 0.225)
 class PhoenixDataset(Dataset):
     def __init__(
         self,
+        df: pd.DataFrame, 
         root_dir: str,
         device,
         num_frames: int = 120,
@@ -39,12 +40,12 @@ class PhoenixDataset(Dataset):
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
         self.device = device
-
+        
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
-
-        self.df = pd.read_csv(self.dataset_path)
+        
+        self.df = df
         self.vocab = json.load(open(self.vocab_path))
 
         self.glosses = self.vocab["glosses"]
@@ -125,7 +126,7 @@ class PhoenixDataset(Dataset):
 
             frames.append(read_file(frame))
 
-        return torch.stack(decode_jpeg(frames, device=self.device), dim=0)
+        return torch.stack(decode_jpeg(frames), dim=0)
 
     @staticmethod
     def collate_fn(batch: list):

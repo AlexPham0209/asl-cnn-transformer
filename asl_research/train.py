@@ -22,7 +22,9 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.distributed import DistributedSampler
+from sklearn.model_selection import train_test_split
 import torch.multiprocessing as mp
+import pandas as pd
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -47,7 +49,7 @@ class Trainer:
     def __init__(
         self,
         model: ASLModel,
-        dataset: PhoenixDataset,
+        vocab: (dict, dict, dict, dict),
         train_dl: DataLoader,
         valid_dl: DataLoader,
         test_dl: DataLoader,
@@ -61,12 +63,9 @@ class Trainer:
         self.gpu_id = gpu_id
         self.training_config = training_config
 
-        # Saving dataset and vocab
-        self.dataset = dataset
-        self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = (
-            self.dataset.get_vocab()
-        )
-
+        # Vocab
+        self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = vocab
+        
         # Saving dataloaders
         self.train_dl = train_dl
         self.valid_dl = valid_dl
@@ -91,7 +90,7 @@ class Trainer:
         self.valid_loss_history = []
 
         self.epochs = training_config["epochs"]
-        self.curr_epoch = 0
+        self.curr_epoch = 1
 
         self.save_path = training_config["save_path"]
         self.load_path = training_config["load_path"]
@@ -109,11 +108,11 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate()
-
+        
             # Adding to training and validation history
             self.train_loss_history.append(train_loss)
             self.valid_loss_history.append(valid_loss)
-
+        
             # Saving model
             if valid_loss < self.best_loss and self.gpu_id == 0:
                 self._save_checkpoint(valid_loss)
@@ -270,7 +269,6 @@ class Trainer:
         self.best_loss = checkpoint["best_loss"]
         self.train_loss_history = checkpoint["train_loss_history"]
         self.valid_loss_history = checkpoint["valid_loss_history"]
-        torch.cuda.empty_cache()
 
     def _save_checkpoint(self, epoch, valid_loss):
         if valid_loss < self.best_loss and self.gpu_id != 0:
@@ -304,11 +302,34 @@ class Trainer:
         plt.show()
 
 
-def create_dataloaders(dataset: Dataset, training_config: dict):
+def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
-    generator = torch.Generator().manual_seed(training_config["seed"])
-    train_set, valid_set, test_set = random_split(
-        dataset=dataset, lengths=training_config["split"], generator=generator
+    df = pd.read_csv(os.path.join(path, "dataset.csv"))
+    train, test = train_test_split(df, test_size=0.2)
+    test, valid = train_test_split(df, test_size=0.5)
+    
+    train_set = PhoenixDataset(
+        df=train,
+        root_dir=PROCESSED_PATH,
+        num_frames=training_config["num_frames"],
+        target_size=(224, 224),
+        device=DEVICE,
+    )
+
+    valid_set = PhoenixDataset(
+        df=valid,
+        root_dir=PROCESSED_PATH,
+        num_frames=training_config["num_frames"],
+        target_size=(224, 224),
+        device=DEVICE,
+    )
+
+    test_set = PhoenixDataset(
+        df=test,
+        root_dir=PROCESSED_PATH,
+        num_frames=training_config["num_frames"],
+        target_size=(224, 224),
+        device=DEVICE,
     )
 
     # Creating dataloaders for each subset
@@ -317,49 +338,41 @@ def create_dataloaders(dataset: Dataset, training_config: dict):
         batch_size=training_config["batch_size"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(dataset)
+        sampler=DistributedSampler(train_set)
     )
     valid_dl = DataLoader(
         valid_set,
         batch_size=training_config["batch_size"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(dataset)
+        sampler=DistributedSampler(valid_set)
     )
     test_dl = DataLoader(
         test_set,
         batch_size=training_config["batch_size"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(dataset)
+        sampler=DistributedSampler(test_set)
     )
 
-    return train_dl, valid_dl, test_dl
-
+    return train_set.get_vocab(), train_dl, valid_dl, test_dl
+    
 
 def start_training(rank: int, world_size: int, config: dict):
     ddp_setup(rank, world_size)
     model_config = config["model"]
     training_config = config["training"]
-
-    # Creating dataset and getting gloss and word vocabulary dictionaries
-    dataset = PhoenixDataset(
-        root_dir=PROCESSED_PATH,
-        num_frames=training_config["num_frames"],
-        target_size=(224, 224),
-        device=DEVICE,
-    )
-
-    gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
-    train_dl, valid_dl, test_dl = create_dataloaders(dataset, training_config)
-
+    
+    vocab, train_dl, valid_dl, test_dl = create_dataloaders(PROCESSED_PATH, training_config)
+    gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
+    
     assert "-" in gloss_to_idx
     assert "<sos>" in word_to_idx
     assert "<eos>" in word_to_idx
 
     assert "<pad>" in gloss_to_idx
     assert "<pad>" in word_to_idx
-
+    
     # Creating the model
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
@@ -379,9 +392,10 @@ def start_training(rank: int, world_size: int, config: dict):
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )
-
+    
     trainer = Trainer(
         model=model,
+        vocab=vocab,
         train_dl=train_dl,
         valid_dl=valid_dl,
         test_dl=test_dl,
