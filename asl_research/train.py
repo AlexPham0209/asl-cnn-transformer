@@ -110,6 +110,12 @@ def train(config: dict):
     file_name = training_config["file_name"]
 
     curr_epoch = 1
+
+    if torch.cuda.device_count() > 1:
+      print("Let's use", torch.cuda.device_count(), "GPUs!")
+      model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model.to(DEVICE)
+    
     if len(load_path) > 0:
         assert os.path.exists(load_path) 
         print("Loading checkpoint...")
@@ -121,11 +127,6 @@ def train(config: dict):
         train_loss_history = checkpoint["train_loss_history"]
         valid_loss_history = checkpoint["valid_loss_history"]
         torch.cuda.empty_cache()
-    
-    if torch.cuda.device_count() > 1:
-      print("Let's use", torch.cuda.device_count(), "GPUs!")
-      model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
-    model.to(DEVICE)
     
     # Start training
     valid_loss, valid_wer = validate(
@@ -141,7 +142,7 @@ def train(config: dict):
         training_config["train_translation"],
     )
     print(f"Valid Average loss: {valid_loss:>8f}")
-    print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
+    # print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
 
     for epoch in range(curr_epoch, epochs + 1):
         start_time = time.time()
@@ -191,7 +192,7 @@ def train(config: dict):
         print(f"\nEpoch Time: {total_time:.1f} seconds")
         print(f"Training Average loss: {train_loss:>8f}")
         print(f"Valid Average loss: {valid_loss:>8f}")
-        print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
+        # print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
 
         scheduler.step(valid_loss)
         if early_stopping.early_stop(valid_loss):
