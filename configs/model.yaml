@@ -10,7 +10,7 @@ model:
 training:
   # Basic hyperparameters
   epochs: 150
-  batch_size: 16
+  batch_size: 8
   lr: 1e-4
     
   # File path locations
@@ -26,14 +26,14 @@ training:
   # Random splitting seed and ration
   seed: 29
   split: [0.8, 0.1, 0.1]
-    
+
   # Early Stopping
   patience: 8
   delta: 0.01
     
   # Misc.
   num_workers: 4
-  num_frames: 60
+  num_frames: 30
 
 testing:
   load_path: 'models/best.pt'

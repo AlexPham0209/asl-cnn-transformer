@@ -62,7 +62,7 @@ class Trainer:
         self.model = model.to(gpu_id)
         self.gpu_id = gpu_id
         self.training_config = training_config
-
+        
         # Vocab
         self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = vocab
 
@@ -104,9 +104,10 @@ class Trainer:
 
     def train(self):
         valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
-        print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
-        print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
-        print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
+        if self.gpu_id == 0:
+            print(f"Starting Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
+            print(f"Starting Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
+            print(f"Starting Average Loss: {valid_loss:>8f}\n")
         
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
@@ -114,8 +115,8 @@ class Trainer:
             valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
                 
             # Saving model
-            self._save_checkpoint()
-
+            self._save_checkpoint(epoch, valid_loss)
+            
             # Only print out diagnostic messages 
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
@@ -123,19 +124,19 @@ class Trainer:
                 # Adding to training and validation history
                 self.train_loss_history.append(train_loss)
                 self.valid_loss_history.append(valid_loss)
-
+                
                 # Showing metrics
                 print(f"\nEpoch Time: {total_time:.1f} seconds")
                 print(f"Training Average Gloss Loss: {train_recognition_loss:>8f}", end=" - ")
                 print(f"Training Average Sentence Loss: {train_translation_loss:>8f}", end = " - ")
-                print(f"Training Average Loss: {train_loss:>8f}\n")
+                print(f"Training Average Loss: {train_loss:>8f}")
 
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
                 print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
                 print(f"Valid Average Loss: {valid_loss:>8f}\n")
                 # print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
                 # print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
-
+        
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             if self.early_stopping.early_stop(valid_loss):
@@ -147,9 +148,9 @@ class Trainer:
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
-        for videos, glosses, gloss_lengths, sentences in tqdm(
-            self.train_dl, desc=f"GPU {self.gpu_id} Epoch {epoch}", position=self.gpu_id
-        ):
+        dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
+        
+        for videos, glosses, gloss_lengths, sentences in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
@@ -169,7 +170,7 @@ class Trainer:
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-
+            
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -201,9 +202,9 @@ class Trainer:
         actual_glosses = []
         predicted_glosses = []
 
-        for videos, glosses, gloss_lengths, sentences in tqdm(
-            self.valid_dl, desc=f"GPU {self.gpu_id} Validating", position=self.gpu_id
-        ):
+        dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"GPU {self.gpu_id} Validating")
+        
+        for videos, glosses, gloss_lengths, sentences in dl:
             videos = videos.to(DEVICE)
             glosses = glosses.to(DEVICE)
             gloss_lengths = gloss_lengths.to(DEVICE)
@@ -236,7 +237,7 @@ class Trainer:
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-            
+                
             # Decoder loss
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
@@ -276,7 +277,7 @@ class Trainer:
     def _save_checkpoint(self, epoch: int, valid_loss: float):
         if valid_loss < self.best_loss and self.gpu_id != 0:
             return
-
+        
         self.best_loss = valid_loss
         print("\nNew best model, saving...")
         torch.save(
@@ -412,7 +413,7 @@ def start_training(rank: int, world_size: int, config: dict):
         training_config=training_config,
         gpu_id=rank,
     )
-
+    
     trainer.train()
     destroy_process_group()
 
@@ -427,6 +428,5 @@ def main():
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
     
-
 if __name__ == "__main__":
     main()

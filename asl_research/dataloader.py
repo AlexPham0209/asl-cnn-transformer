@@ -82,7 +82,7 @@ class PhoenixDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
-
+        
     def __getitem__(self, index):
         # Reading information from row entry in the dataframe
         item = self.df.iloc[index]
