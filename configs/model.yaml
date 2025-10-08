@@ -17,7 +17,7 @@ training:
   save_path: 'models'
   file_name: 'best2'
   load_path: ''
-  diagram_paths: ''
+  diagram_path: ''
     
   # Weights used for joint loss
   recognition_weight: 1.0
@@ -32,7 +32,7 @@ training:
   delta: 0.01
 
   # Misc.
-  num_workers: 4
+  num_workers: 0
   num_frames: 60
 
 testing:

@@ -139,13 +139,13 @@ class SpatialEmbedding(nn.Module):
         d_model: int = 512,
         hidden_size: int = 256,
         dropout: float = 0.1,
-        model: str = "efficientnet_b0",
+        pretrained_model: str = "efficientnet_b0",
     ):
         super(SpatialEmbedding, self).__init__()
-
+        
         # Initializing the model based on our model parameter and freezing all the weights
         self.conv = None
-        match model:
+        match pretrained_model:
             case "efficientnet_b0":
                 self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
             case "resnet50":
@@ -156,7 +156,7 @@ class SpatialEmbedding(nn.Module):
             param.requires_grad = False
 
         # Replacing final classification layer with our own depending on what model we choose
-        match model:
+        match pretrained_model:
             case "efficientnet_b0":
                 self.conv.classifier[1] = nn.Linear(
                     self.conv.classifier[1].in_features, hidden_size
