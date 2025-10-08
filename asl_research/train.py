@@ -321,7 +321,6 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
-        device=DEVICE,
     )
 
     valid_set = PhoenixDataset(
@@ -329,7 +328,6 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
-        device=DEVICE,
     )
 
     test_set = PhoenixDataset(
@@ -337,7 +335,6 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
-        device=DEVICE,
     )
 
     # Creating dataloaders for each subset

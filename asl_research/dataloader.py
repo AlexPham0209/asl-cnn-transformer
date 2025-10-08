@@ -30,7 +30,6 @@ class PhoenixDataset(Dataset):
         self,
         df: pd.DataFrame,
         root_dir: str,
-        device,
         num_frames: int = 120,
         target_size: tuple = (224, 224),
     ):
@@ -39,7 +38,6 @@ class PhoenixDataset(Dataset):
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
-        self.device = device
 
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
@@ -56,7 +54,7 @@ class PhoenixDataset(Dataset):
 
         self.df = df
         self.vocab = json.load(open(self.vocab_path))
-
+        
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
 
