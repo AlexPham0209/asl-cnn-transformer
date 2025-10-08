@@ -68,7 +68,6 @@ class PhoenixDataset(Dataset):
         # Data augmentation settings
         self.transform = Compose(
             [
-                UniformTemporalSubsample(num_frames),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
                 Resize((256, 256)),
@@ -123,18 +122,21 @@ class PhoenixDataset(Dataset):
 
     def read_video(self, path: str):
         frames = []
-        for frame in sorted(
+        frame_files = sorted(
             os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))
-        ):
-            frame = os.path.join(path, frame)
-
+        )
+        
+        frame_positions = torch.linspace(start=0, end=len(frame_files) - 1, steps=self.num_frames, dtype=int)
+        for pos in frame_positions:
+            frame = os.path.join(path, frame_files[pos.item()])
+                
             if not frame.endswith(".jpg"):
                 continue
-
+            
             frames.append(read_file(frame))
-
+        
         return torch.stack(decode_jpeg(frames), dim=0)
-
+        
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
