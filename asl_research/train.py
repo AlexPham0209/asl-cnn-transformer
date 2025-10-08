@@ -105,7 +105,7 @@ class Trainer:
     def train(self):
         valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
         print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
-        print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
+        print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
         print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
         
         for epoch in range(self.curr_epoch, self.epochs + 1):
@@ -131,7 +131,7 @@ class Trainer:
                 print(f"Training Average Loss: {train_loss:>8f}\n")
 
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
-                print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
+                print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
                 print(f"Valid Average Loss: {valid_loss:>8f}\n")
                 # print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
                 # print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
