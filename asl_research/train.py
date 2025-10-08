@@ -103,25 +103,23 @@ class Trainer:
         self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
 
     def train(self):
+        valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
+        print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
+        print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
+        print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
+        
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-
-            (
-                valid_recognition_loss,
-                valid_translation_loss,
-                valid_loss,
-                valid_gloss_wer,
-                valid_sentence_wer,
-            ) = self._validate()
-
+            valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
+                
             # Saving model
             self._save_checkpoint()
 
             # Only print out diagnostic messages 
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
-
+                
                 # Adding to training and validation history
                 self.train_loss_history.append(train_loss)
                 self.valid_loss_history.append(valid_loss)
@@ -135,8 +133,8 @@ class Trainer:
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
                 print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
                 print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
-                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
-                print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
+                # print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+                # print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
 
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
@@ -159,12 +157,12 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-            encoder_out, decoder_out = self.model(videos, sentences[:, :-1]).to(self.gpu_id)
+            encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
+            input_lengths = torch.full(size=(N,), fill_value=T)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
             # Decoder loss
@@ -211,25 +209,25 @@ class Trainer:
             gloss_lengths = gloss_lengths.to(DEVICE)
             sentences = sentences.to(DEVICE)
 
-            encoder_out, decoder_out = self.model.module.greedy_decode(videos)
+            # encoder_out, decoder_out = self.model.module.greedy_decode(videos)
 
-            # Convert output tensors into strings
-            actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
-            predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
+            # # Convert output tensors into strings
+            # actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
+            # predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
 
-            actual_sentence = decode_sentences(
-                sentences.tolist(), self.word_to_idx, self.idx_to_word
-            )
-            predicted_sentence = decode_sentences(
-                decoder_out.tolist(), self.word_to_idx, self.idx_to_word
-            )
+            # actual_sentence = decode_sentences(
+            #     sentences.tolist(), self.word_to_idx, self.idx_to_word
+            # )
+            # predicted_sentence = decode_sentences(
+            #     decoder_out.tolist(), self.word_to_idx, self.idx_to_word
+            # )
 
-            # Add to collection of sentences and glosses for WER calculation
-            actual_glosses.extend(actual_gloss)
-            predicted_glosses.extend(predicted_gloss)
+            # # Add to collection of sentences and glosses for WER calculation
+            # actual_glosses.extend(actual_gloss)
+            # predicted_glosses.extend(predicted_gloss)
             
-            actual_sentences.extend(actual_sentence)
-            predicted_sentences.extend(predicted_sentence)
+            # actual_sentences.extend(actual_sentence)
+            # predicted_sentences.extend(predicted_sentence)
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
 
