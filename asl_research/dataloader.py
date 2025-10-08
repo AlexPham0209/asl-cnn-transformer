@@ -38,6 +38,7 @@ class PhoenixDataset(Dataset):
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
+        self.num_frames = num_frames
 
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
@@ -126,7 +127,7 @@ class PhoenixDataset(Dataset):
             os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))
         )
         
-        frame_positions = torch.linspace(start=0, end=len(frame_files) - 1, steps=self.num_frames, dtype=int)
+        frame_positions = torch.linspace(start=0, end=len(frame_files)-1, steps=self.num_frames, dtype=int)
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
                 

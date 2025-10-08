@@ -132,7 +132,7 @@ class Trainer:
 
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
                 print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
-                print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
+                print(f"Valid Average Loss: {valid_loss:>8f}\n")
                 # print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
                 # print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
 
@@ -154,7 +154,7 @@ class Trainer:
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
-
+            
             self.optimizer.zero_grad()
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
@@ -236,12 +236,12 @@ class Trainer:
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+            
             # Decoder loss
-            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]))
+            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-
+            
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -426,7 +426,7 @@ def main():
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
-
+    
 
 if __name__ == "__main__":
     main()
