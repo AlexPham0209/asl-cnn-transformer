@@ -393,6 +393,7 @@ def start_training(rank: int, world_size: int, config: dict):
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
         num_decoders=model_config["num_decoders"],
+        pretrained_embedding=model_config["pretrained_embedding"],
         gloss_to_idx=gloss_to_idx,
         idx_to_gloss=idx_to_gloss,
         word_to_idx=word_to_idx,

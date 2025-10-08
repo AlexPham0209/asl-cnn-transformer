@@ -17,6 +17,7 @@ class ASLModel(nn.Module):
         self,
         num_encoders: int = 2,
         num_decoders: int = 2,
+        pretrained_embedding: str = "efficientnet_b0",
         gloss_to_idx: dict = {"-": 0, "<pad>": 1},
         idx_to_gloss: dict = {0: "-", 1: "<pad>"},
         word_to_idx: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
@@ -40,7 +41,7 @@ class ASLModel(nn.Module):
         self.d_model = d_model
 
         # Encoder
-        self.src_embedding = SpatialEmbedding(d_model=d_model, dropout=dropout)
+        self.src_embedding = SpatialEmbedding(d_model=d_model, dropout=dropout, pretrained_model=pretrained_embedding)
         self.encoder = TransformerEncoder(
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
