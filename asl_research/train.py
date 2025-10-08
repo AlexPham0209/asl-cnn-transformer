@@ -116,26 +116,27 @@ class Trainer:
             ) = self._validate()
 
             # Saving model
-            if valid_loss < self.best_loss and self.gpu_id == 0:
-                self._save_checkpoint(valid_loss)
+            self._save_checkpoint()
 
-            total_time = time.time() - start_time
+            # Only print out diagnostic messages 
+            if self.gpu_id == 0:
+                total_time = time.time() - start_time
 
-            # Adding to training and validation history
-            self.train_loss_history.append(train_loss)
-            self.valid_loss_history.append(valid_loss)
+                # Adding to training and validation history
+                self.train_loss_history.append(train_loss)
+                self.valid_loss_history.append(valid_loss)
 
-            # Showing metrics
-            print(f"\nEpoch Time: {total_time:.1f} seconds")
-            print(f"Training Average Recognition Loss: {train_recognition_loss:>8f}")
-            print(f"Training Average Translation Loss: {train_translation_loss:>8f}")
-            print(f"Training Average Joint Loss: {train_loss:>8f}\n")
+                # Showing metrics
+                print(f"\nEpoch Time: {total_time:.1f} seconds")
+                print(f"Training Average Gloss Loss: {train_recognition_loss:>8f}", end=" - ")
+                print(f"Training Average Sentence Loss: {train_translation_loss:>8f}", end = " - ")
+                print(f"Training Average Loss: {train_loss:>8f}\n")
 
-            print(f"Valid Average Recognition Loss: {valid_recognition_loss:>8f}")
-            print(f"Training Average Translation Loss: {valid_translation_loss:>8f}")
-            print(f"Valid Average Loss: {valid_loss:>8f}")
-            print(f"Valid Gloss Word Error Rate: {valid_gloss_wer:>8f}")
-            print(f"Valid Sentence Word Error Rate: {valid_sentence_wer:>8f}\n")
+                print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end = " - ")
+                print(f"Training Average Sentence Loss: {valid_translation_loss:>8f}", end = " - ")
+                print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
+                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+                print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
 
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
@@ -158,9 +159,6 @@ class Trainer:
 
             self.optimizer.zero_grad()
 
-            # Should output the encoder output
-            # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
-            # decoder_out: (batch_size, video_length, word_vocab_size)
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1]).to(self.gpu_id)
 
             # Encoder loss
@@ -175,8 +173,8 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected)
 
             # Calculating the joint loss
-            # recognition_losses += recognition_loss.item()
-            # translation_losses += translation_loss.item()
+            recognition_losses += recognition_loss.item()
+            translation_losses += translation_loss.item()
             loss = (
                 self.recognition_weight * recognition_loss
                 + self.translation_weight * translation_loss
@@ -229,13 +227,10 @@ class Trainer:
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
-
+            
             actual_sentences.extend(actual_sentence)
             predicted_sentences.extend(predicted_sentence)
 
-            # Should outpust the encoder output
-            # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
-            # decoder_out: (batch_size, sentence_length, word_vocab_size)
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
 
             # Encoder loss

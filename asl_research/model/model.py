@@ -68,6 +68,9 @@ class ASLModel(nn.Module):
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 
+        # Should output the encoder output
+        # src: (batch_size, gloss_sequence_length, gloss_vocab_size)
+        # trg: (batch_size, video_length, word_vocab_size)
         return src, trg
 
     def greedy_decode(

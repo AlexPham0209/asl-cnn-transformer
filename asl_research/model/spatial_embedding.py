@@ -151,7 +151,6 @@ class SpatialEmbedding(nn.Module):
             case "resnet50":
                 self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
 
-        # self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
         for param in self.conv.parameters():
             param.requires_grad = False
 
