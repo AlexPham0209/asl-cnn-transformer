@@ -431,7 +431,9 @@ def main():
         config = yaml.safe_load(file)
 
     world_size = torch.cuda.device_count()
-    print(f"Current World Size: {world_size}")
+    print(f"GPU count: {world_size}")
+
+    assert world_size > 0, "Not enough GPUs (Need more than 1)"
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
 
 
