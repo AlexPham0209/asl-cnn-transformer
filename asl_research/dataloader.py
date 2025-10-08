@@ -28,7 +28,7 @@ std = (0.229, 0.224, 0.225)
 class PhoenixDataset(Dataset):
     def __init__(
         self,
-        df: pd.DataFrame, 
+        df: pd.DataFrame,
         root_dir: str,
         device,
         num_frames: int = 120,
@@ -40,11 +40,11 @@ class PhoenixDataset(Dataset):
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
         self.device = device
-        
+
         assert os.path.exists(self.dataset_path)
         assert os.path.exists(self.vocab_path)
         assert os.path.exists(self.video_dir)
-        
+
         self.df = df
         self.vocab = json.load(open(self.vocab_path))
 
@@ -54,10 +54,10 @@ class PhoenixDataset(Dataset):
         # Create dictionaries to convert string tokens into their ids and vice versa
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
-    
+
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
-        
+
         # Data augmentation settings
         self.transform = Compose(
             [
@@ -75,7 +75,7 @@ class PhoenixDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
-            
+
     def __getitem__(self, index):
         # Reading information from row entry in the dataframe
         item = self.df.iloc[index]
@@ -91,18 +91,18 @@ class PhoenixDataset(Dataset):
             + [self.word_to_idx[word] for word in sentence.split()]
             + [self.word_to_idx["<eos>"]]
         )
-        
+
         # Load video from path and transpose time and batch dimensions
         # assert os.path.exists(path)
         # video: EncodedVideo = EncodedVideo.from_path(path)
         # clip_duration = video.duration
         # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         # video_data = self.transform(video_data)
-        
+
         assert os.path.exists(processed_path)
         video_data = self.read_video(processed_path)
         video_data = self.transform(video_data)
-        
+
         return (
             video_data,
             gloss_tokens,
@@ -125,9 +125,9 @@ class PhoenixDataset(Dataset):
                 continue
 
             frames.append(read_file(frame))
-        
+
         return torch.stack(decode_jpeg(frames), dim=0)
-        
+
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)

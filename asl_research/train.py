@@ -44,6 +44,7 @@ def ddp_setup(rank, world_size):
     torch.cuda.set_device(rank)
     init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
+
 class Trainer:
     def __init__(
         self,
@@ -56,7 +57,7 @@ class Trainer:
         scheduler: LRScheduler,
         early_stopping: EarlyStopping,
         training_config: dict,
-        gpu_id: int
+        gpu_id: int,
     ):
         self.model = model.to(gpu_id)
         self.gpu_id = gpu_id
@@ -64,13 +65,13 @@ class Trainer:
 
         # Vocab
         self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = vocab
-        
+
         # Saving dataloaders
         self.train_dl = train_dl
         self.valid_dl = valid_dl
         self.test_dl = test_dl
 
-        # Set up training settings
+        # Config and training settings
         self.best_loss = torch.inf
         self.train_loss_history = []
         self.valid_loss_history = []
@@ -101,12 +102,11 @@ class Trainer:
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
         self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
 
-    
     def train(self):
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            
+
             (
                 valid_recognition_loss,
                 valid_translation_loss,
@@ -114,7 +114,7 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate()
-        
+
             # Saving model
             if valid_loss < self.best_loss and self.gpu_id == 0:
                 self._save_checkpoint(valid_loss)
@@ -124,7 +124,7 @@ class Trainer:
             # Adding to training and validation history
             self.train_loss_history.append(train_loss)
             self.valid_loss_history.append(valid_loss)
-            
+
             # Showing metrics
             print(f"\nEpoch Time: {total_time:.1f} seconds")
             print(f"Training Average Recognition Loss: {train_recognition_loss:>8f}")
@@ -148,7 +148,9 @@ class Trainer:
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
-        for videos, glosses, gloss_lengths, sentences in tqdm(self.train_dl, desc=f"GPU {self.gpu_id} Epoch {epoch}", position=self.gpu_id):
+        for videos, glosses, gloss_lengths, sentences in tqdm(
+            self.train_dl, desc=f"GPU {self.gpu_id} Epoch {epoch}", position=self.gpu_id
+        ):
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
@@ -160,7 +162,7 @@ class Trainer:
             # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
             # decoder_out: (batch_size, video_length, word_vocab_size)
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1]).to(self.gpu_id)
-            
+
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
@@ -171,7 +173,7 @@ class Trainer:
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-            
+
             # Calculating the joint loss
             # recognition_losses += recognition_loss.item()
             # translation_losses += translation_loss.item()
@@ -203,7 +205,9 @@ class Trainer:
         actual_glosses = []
         predicted_glosses = []
 
-        for videos, glosses, gloss_lengths, sentences in tqdm(self.valid_dl, desc=f"GPU {self.gpu_id} Validating", position=self.gpu_id):
+        for videos, glosses, gloss_lengths, sentences in tqdm(
+            self.valid_dl, desc=f"GPU {self.gpu_id} Validating", position=self.gpu_id
+        ):
             videos = videos.to(DEVICE)
             glosses = glosses.to(DEVICE)
             gloss_lengths = gloss_lengths.to(DEVICE)
@@ -265,7 +269,7 @@ class Trainer:
     def _load_checkpoint(self):
         if len(self.load_path) <= 0:
             return
-        
+
         assert os.path.exists(self.load_path), "Load path doesn't exist"
         print("Loading checkpoint...")
         checkpoint = torch.load(self.load_path, weights_only=False)
@@ -295,9 +299,9 @@ class Trainer:
         )
 
     def _save_diagrams(self):
-        if self.gpu_id == 0:
+        if self.gpu_id != 0:
             return
-        
+
         assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
         plt.title("Model Loss")
         plt.ylabel("Loss")
@@ -307,8 +311,8 @@ class Trainer:
         plt.plot(self.train_loss_history, label="train")
         plt.plot(self.valid_loss_history, label="valid")
         plt.legend(["train", "valid"], loc="upper left")
-    
-        plt.savefig(os.path.join(self.diagram_path, 'figure.png'))
+
+        plt.savefig(os.path.join(self.diagram_path, "figure.png"))
 
 
 def create_dataloaders(path: str, training_config: dict):
@@ -316,7 +320,7 @@ def create_dataloaders(path: str, training_config: dict):
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
     train, test = train_test_split(df, test_size=0.2)
     test, valid = train_test_split(df, test_size=0.5)
-    
+
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
@@ -348,7 +352,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(train_set)
+        sampler=DistributedSampler(train_set),
     )
     valid_dl = DataLoader(
         valid_set,
@@ -356,7 +360,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(valid_set)
+        sampler=DistributedSampler(valid_set),
     )
     test_dl = DataLoader(
         test_set,
@@ -364,27 +368,27 @@ def create_dataloaders(path: str, training_config: dict):
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
-        sampler=DistributedSampler(test_set)
+        sampler=DistributedSampler(test_set),
     )
 
     return train_set.get_vocab(), train_dl, valid_dl, test_dl
-    
+
 
 def start_training(rank: int, world_size: int, config: dict):
     ddp_setup(rank, world_size)
     model_config = config["model"]
     training_config = config["training"]
-    
+
     vocab, train_dl, valid_dl, test_dl = create_dataloaders(PROCESSED_PATH, training_config)
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
-    
+
     assert "-" in gloss_to_idx
     assert "<sos>" in word_to_idx
     assert "<eos>" in word_to_idx
 
     assert "<pad>" in gloss_to_idx
     assert "<pad>" in word_to_idx
-    
+
     # Creating the model
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
@@ -404,7 +408,7 @@ def start_training(rank: int, world_size: int, config: dict):
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )
-    
+
     trainer = Trainer(
         model=model,
         vocab=vocab,
@@ -415,19 +419,21 @@ def start_training(rank: int, world_size: int, config: dict):
         scheduler=scheduler,
         early_stopping=early_stopping,
         training_config=training_config,
-        gpu_id=rank
+        gpu_id=rank,
     )
-    
+
     trainer.train()
     destroy_process_group()
+
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
-    
+
     world_size = torch.cuda.device_count()
     print(f"Current World Size: {world_size}")
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
+
 
 if __name__ == "__main__":
     main()
