@@ -41,9 +41,18 @@ class PhoenixDataset(Dataset):
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
         self.device = device
 
-        assert os.path.exists(self.dataset_path)
-        assert os.path.exists(self.vocab_path)
-        assert os.path.exists(self.video_dir)
+        assert os.path.exists(self.dataset_path), (
+            "Dataset directory doesn't exists (try running the download script)"
+        )
+        assert os.path.exists(self.vocab_path), (
+            "Vocab.json doesn't exist (try running the download script)"
+        )
+        assert os.path.exists(self.video_dir), (
+            "Video directory doesn't exist (try running the download script)"
+        )
+        assert os.path.exists(self.processed_video_dir), (
+            "Processed video directory doesn't exist (try running the preprocessing script)"
+        )
 
         self.df = df
         self.vocab = json.load(open(self.vocab_path))
@@ -99,7 +108,7 @@ class PhoenixDataset(Dataset):
         # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
         # video_data = self.transform(video_data)
 
-        assert os.path.exists(processed_path)
+        assert os.path.exists(processed_path), "Processed path doesn't exists"
         video_data = self.read_video(processed_path)
         video_data = self.transform(video_data)
 

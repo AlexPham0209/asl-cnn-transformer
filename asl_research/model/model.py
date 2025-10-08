@@ -41,7 +41,9 @@ class ASLModel(nn.Module):
         self.d_model = d_model
 
         # Encoder
-        self.src_embedding = SpatialEmbedding(d_model=d_model, dropout=dropout, pretrained_model=pretrained_embedding)
+        self.src_embedding = SpatialEmbedding(
+            d_model=d_model, dropout=dropout, pretrained_model=pretrained_embedding
+        )
         self.encoder = TransformerEncoder(
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
