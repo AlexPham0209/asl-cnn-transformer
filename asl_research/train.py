@@ -88,8 +88,6 @@ class Trainer:
         self.recognition_weight = training_config["recognition_weight"]
         self.translation_weight = training_config["translation_weight"]
 
-        self.max_len = training_config["max_len"]
-
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.early_stopping = early_stopping
@@ -134,7 +132,7 @@ class Trainer:
                 print(f"Training Average Gloss Loss: {train_recognition_loss:>8f}", end=" - ")
                 print(f"Training Average Sentence Loss: {train_translation_loss:>8f}", end=" - ")
                 print(f"Training Average Loss: {train_loss:>8f}")
-
+                
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
                 print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
                 print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
@@ -154,12 +152,12 @@ class Trainer:
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
 
-        for videos, glosses, gloss_lengths, sentences in dl:
+        for videos, glosses, gloss_lengths, sentences, _ in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
-
+            
             self.optimizer.zero_grad()
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
@@ -169,7 +167,7 @@ class Trainer:
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -272,7 +270,7 @@ class Trainer:
         )
 
     def _load_checkpoint(self):
-        if len(self.load_path) <= 0:
+        if len(self.load_path) <= 0 and not isinstance(self.model, ASLModel):
             return
 
         assert os.path.exists(self.load_path), "Load path doesn't exist"

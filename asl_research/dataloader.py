@@ -18,6 +18,7 @@ from torchvision.transforms import (
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
 from asl_research.utils.utils import pad_video_with_last_frame, pad_video_with_value
+import random
 
 # mean = (0.53724027, 0.5272855, 0.51954997)
 # std = (1, 1, 1)
@@ -33,6 +34,7 @@ class PhoenixDataset(Dataset):
         root_dir: str,
         num_frames: int = 120,
         target_size: tuple = (224, 224),
+        max_start_frame: int = 10
     ):
         super().__init__()
         self.dataset_path = os.path.join(root_dir, "dataset.csv")
@@ -40,6 +42,7 @@ class PhoenixDataset(Dataset):
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
         self.num_frames = num_frames
+        self.max_start_frame = max_start_frame
 
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
@@ -129,7 +132,7 @@ class PhoenixDataset(Dataset):
         )
         
         frame_positions = torch.linspace(
-            start=0, end=len(frame_files) - 1, steps=self.num_frames, dtype=int
+            start=random.randint(0, self.max_start_frame), end=len(frame_files) - 1, steps=self.num_frames, dtype=int
         ) 
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
@@ -154,9 +157,10 @@ class PhoenixDataset(Dataset):
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences
+        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
         
 
     @staticmethod
@@ -175,9 +179,10 @@ class PhoenixDataset(Dataset):
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences
+        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
     
     @staticmethod
     def collate_fn_zero_padding(batch: list):
@@ -195,7 +200,7 @@ class PhoenixDataset(Dataset):
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
-        sentence_lengths = torch.tensor([sentences.shape[0] for sentence in sentences])
+        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
