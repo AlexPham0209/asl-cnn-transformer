@@ -103,11 +103,13 @@ class Trainer:
         self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
 
     def train(self):
-        valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
+        valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer = self._validate()
         if self.gpu_id == 0:
             print(f"Starting Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
             print(f"Starting Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-            print(f"Starting Average Loss: {valid_loss:>8f}\n")
+            print(f"Starting Average Loss: {valid_loss:>8f}", end = " - ")
+            print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+            print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
 
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
@@ -159,7 +161,7 @@ class Trainer:
             self.optimizer.zero_grad()
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
@@ -167,7 +169,7 @@ class Trainer:
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
             # Decoder loss
-            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
             
@@ -179,7 +181,7 @@ class Trainer:
                 + self.translation_weight * translation_loss
             )
             losses += loss.item()
-
+            
             loss.backward()
             self.optimizer.step()
 
@@ -205,7 +207,7 @@ class Trainer:
         dl = (
             self.valid_dl
             if self.gpu_id != 0
-            else tqdm(self.valid_dl, desc=f"GPU {self.gpu_id} Validating")
+            else tqdm(self.valid_dl, desc=f"Validating")
         )
 
         for videos, glosses, gloss_lengths, sentences in dl:
@@ -245,7 +247,7 @@ class Trainer:
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
 
             # Decoder loss
-            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
 
@@ -262,8 +264,8 @@ class Trainer:
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
             losses / len(self.valid_dl),
+            word_error_rate(predicted_glosses, actual_glosses),
             word_error_rate(predicted_sentences, actual_sentences),
-            word_error_rate(actual_glosses, actual_glosses),
         )
 
     def _load_checkpoint(self):
@@ -281,7 +283,7 @@ class Trainer:
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
     def _save_checkpoint(self, epoch: int, valid_loss: float):
-        if valid_loss < self.best_loss and self.gpu_id != 0:
+        if valid_loss < self.best_loss or self.gpu_id != 0:
             return
 
         self.best_loss = valid_loss
@@ -297,7 +299,7 @@ class Trainer:
             },
             os.path.join(self.save_path, f"{self.file_name}.pt"),
         )
-
+    
     def _save_diagrams(self):
         if self.gpu_id != 0:
             return
