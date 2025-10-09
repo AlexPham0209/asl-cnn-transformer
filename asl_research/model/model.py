@@ -37,7 +37,7 @@ class ASLModel(nn.Module):
         # Padding tokens
         self.gloss_pad_token = gloss_to_idx["<pad>"]
         self.word_pad_token = word_to_idx["<pad>"]
-        
+
         self.d_model = d_model
 
         # Encoder
@@ -95,7 +95,7 @@ class ASLModel(nn.Module):
             list(filter(lambda gloss: gloss != self.gloss_to_idx["-"], sample))
             for sample in encoded
         ]
-
+        
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
@@ -105,7 +105,7 @@ class ASLModel(nn.Module):
         )
         # Fill first column (or the beginning of the sequences) with <SOS> tokens
         sequence[:, 0] = self.word_to_idx["<sos>"]
-
+        
         for t in range(1, max_len):
             out = sequence[:, :t]
             trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(src.device)

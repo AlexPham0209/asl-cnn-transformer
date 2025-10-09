@@ -112,7 +112,7 @@ class Trainer:
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            valid_recognition_loss, valid_translation_loss, valid_loss, _, _ = self._validate()
+            valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer  = self._validate()
 
             # Saving model
             self._save_checkpoint(epoch, valid_loss)
@@ -133,9 +133,9 @@ class Trainer:
 
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
                 print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-                print(f"Valid Average Loss: {valid_loss:>8f}\n")
-                # print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
-                # print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n\n")
+                print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
+                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+                print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
 
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
@@ -214,27 +214,29 @@ class Trainer:
             gloss_lengths = gloss_lengths.to(DEVICE)
             sentences = sentences.to(DEVICE)
 
-            # encoder_out, decoder_out = self.model.module.greedy_decode(videos)
+            with torch.no_grad():
+                encoder_out, decoder_out = self.model.module.greedy_decode(videos)
 
             # # Convert output tensors into strings
-            # actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
-            # predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
+            actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
+            predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
 
-            # actual_sentence = decode_sentences(
-            #     sentences.tolist(), self.word_to_idx, self.idx_to_word
-            # )
-            # predicted_sentence = decode_sentences(
-            #     decoder_out.tolist(), self.word_to_idx, self.idx_to_word
-            # )
+            actual_sentence = decode_sentences(
+                sentences.tolist(), self.word_to_idx, self.idx_to_word
+            )
+            predicted_sentence = decode_sentences(
+                decoder_out.tolist(), self.word_to_idx, self.idx_to_word
+            )
 
-            # # Add to collection of sentences and glosses for WER calculation
-            # actual_glosses.extend(actual_gloss)
-            # predicted_glosses.extend(predicted_gloss)
+            # Add to collection of sentences and glosses for WER calculation
+            actual_glosses.extend(actual_gloss)
+            predicted_glosses.extend(predicted_gloss)
 
-            # actual_sentences.extend(actual_sentence)
-            # predicted_sentences.extend(predicted_sentence)
+            actual_sentences.extend(actual_sentence)
+            predicted_sentences.extend(predicted_sentence)
 
-            encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
+            with torch.no_grad():
+                encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)

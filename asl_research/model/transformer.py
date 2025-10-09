@@ -68,7 +68,7 @@ class BaseTransformer(nn.Module):
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
-
+    
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
