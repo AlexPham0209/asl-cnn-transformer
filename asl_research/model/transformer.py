@@ -37,7 +37,7 @@ class BaseTransformer(nn.Module):
         self.decoder = TransformerDecoder(
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
-        
+
         # Classification
         self.ff = nn.Linear(d_model, trg_vocab_size)
         self.softmax = nn.Softmax(dim=-1)
@@ -77,7 +77,7 @@ class BaseTransformer(nn.Module):
             .to(src.device)
         )
         sequence[:, 0] = trg_vocab["<sos>"]
-        
+
         for t in range(1, max_len):
             out = sequence[:, :t]
             trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)

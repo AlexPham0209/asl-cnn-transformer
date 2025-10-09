@@ -142,7 +142,7 @@ class SpatialEmbedding(nn.Module):
         pretrained_model: str = "efficientnet_b0",
     ):
         super(SpatialEmbedding, self).__init__()
-        
+
         # Initializing the model based on our model parameter and freezing all the weights
         self.conv = None
         match pretrained_model:
