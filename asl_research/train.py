@@ -88,6 +88,8 @@ class Trainer:
         self.recognition_weight = training_config["recognition_weight"]
         self.translation_weight = training_config["translation_weight"]
 
+        self.max_len = training_config["max_len"]
+
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.early_stopping = early_stopping
@@ -101,7 +103,7 @@ class Trainer:
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
         self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
-
+        
     def train(self):
         valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer = self._validate()
         if self.gpu_id == 0:
@@ -138,7 +140,7 @@ class Trainer:
                 print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
                 print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
                 print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
-
+                
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             if self.early_stopping.early_stop(valid_loss):
@@ -210,26 +212,27 @@ class Trainer:
             else tqdm(self.valid_dl, desc=f"Validating")
         )
 
-        for videos, glosses, gloss_lengths, sentences in dl:
-            videos = videos.to(DEVICE)
-            glosses = glosses.to(DEVICE)
-            gloss_lengths = gloss_lengths.to(DEVICE)
-            sentences = sentences.to(DEVICE)
+        for videos, glosses, gloss_lengths, sentences, sentence_lengths in dl:
+            videos = videos.to(self.gpu_id)
+            glosses = glosses.to(self.gpu_id)
+            gloss_lengths = gloss_lengths.to(self.gpu_id)
+            sentences = sentences.to(self.gpu_id)
+            sentence_lengths = sentence_lengths.to(self.gpu_id)
 
             with torch.no_grad():
-                encoder_out, decoder_out = self.model.module.greedy_decode(videos)
-
+                encoder_out, decoder_out = self.model.module.greedy_decode(videos, max_len=torch.max(sentence_lengths).item())
+                
             # # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-
+            
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-
+            
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
@@ -245,12 +248,12 @@ class Trainer:
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-
+            
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -259,7 +262,7 @@ class Trainer:
                 + self.translation_weight * translation_loss
             )
             losses += loss.item()
-
+        
         return (
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
@@ -283,9 +286,9 @@ class Trainer:
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
     def _save_checkpoint(self, epoch: int, valid_loss: float):
-        if valid_loss < self.best_loss or self.gpu_id != 0:
+        if valid_loss > self.best_loss or self.gpu_id != 0:
             return
-
+        
         self.best_loss = valid_loss
         print("\nNew best model, saving...")
         torch.save(
@@ -380,7 +383,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     vocab, train_dl, valid_dl, test_dl = create_dataloaders(PROCESSED_PATH, training_config)
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
-
+    
     assert "-" in gloss_to_idx
     assert "<sos>" in word_to_idx
     assert "<eos>" in word_to_idx

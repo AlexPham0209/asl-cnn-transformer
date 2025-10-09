@@ -76,7 +76,7 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
-        max_len: int = 20,
+        max_len: int = 30,
     ):
         self.eval()
 
@@ -114,7 +114,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
-
+    
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

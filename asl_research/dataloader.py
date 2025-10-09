@@ -195,6 +195,7 @@ class PhoenixDataset(Dataset):
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        sentence_lengths = torch.tensor([sentences.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences
+        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
