@@ -37,7 +37,7 @@ class ASLModel(nn.Module):
         # Padding tokens
         self.gloss_pad_token = gloss_to_idx["<pad>"]
         self.word_pad_token = word_to_idx["<pad>"]
-
+        
         self.d_model = d_model
 
         # Encoder

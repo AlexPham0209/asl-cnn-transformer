@@ -78,7 +78,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     N, sequence_length = x.shape
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
-
+    
 def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = None):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.

@@ -170,7 +170,7 @@ class Trainer:
             actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-
+            
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
