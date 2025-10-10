@@ -15,10 +15,14 @@ from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import generate_padding_mask
+from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
+
+PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 
 with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
     config = yaml.safe_load(file)
@@ -26,12 +30,14 @@ with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
 model_config = config["model"]
 training_config = config["training"]
 
+df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
+train, test = train_test_split(df, test_size=0.2)
+test, valid = train_test_split(df, test_size=0.5)
+
 # Creating dataset and getting gloss and word vocabulary dictionaries
-print(
-    "tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t"
-)
 dataset = PhoenixDataset(
-    root_dir="tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t",
+    df=train,
+    root_dir=PROCESSED_PATH,
     num_frames=training_config["num_frames"],
     target_size=(224, 224),
 )
@@ -68,7 +74,6 @@ if len(load_path) > 0:
     checkpoint = torch.load(load_path, weights_only=False)
     curr_epoch = checkpoint["epoch"] + 1
     model.load_state_dict(checkpoint["model_state_dict"])
-    criterion = checkpoint["criterion"]
     best_loss = checkpoint["best_loss"]
     train_loss_history = checkpoint["train_loss_history"]
     valid_loss_history = checkpoint["valid_loss_history"]
@@ -81,36 +86,26 @@ remove_special_tokens = (
 )
 
 for i in range(10):
-    videos, glosses, gloss_lengths, sentences = next(iter(dataloader))
+    videos, glosses, gloss_lengths, sentences, _ = next(iter(dataloader))
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
     gloss_lengths = gloss_lengths.to(DEVICE)
     sentences = sentences.to(DEVICE)
 
     encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
-    # plt.imshow(videos[0, 15].permute(1, 2, 0).cpu())
-    # plt.show()
 
-    actual_sentence = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in sentences.tolist()
-    ]
-
-    predicted_sentence = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in decoder_out.tolist()
-    ]
-
-    actual_gloss_sequence = [
-        " ".join([idx_to_gloss[token] for token in sample]) for sample in glosses.tolist()
-    ]
-
-    gloss_sequence = [
-        " ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out
-    ]
-
-    print(actual_sentence[0])
-    print(predicted_sentence[0])
-    print(actual_gloss_sequence[0])
-    print(gloss_sequence[0])
+    actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+    predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+            
+    actual_sentence = decode_sentences(
+        sentences.tolist(), word_to_idx, idx_to_word
+    )
+    predicted_sentence = decode_sentences(
+        decoder_out.tolist(), word_to_idx, idx_to_word
+    )
+    
+    print(f"Actual Sentence: {actual_sentence[0]}")
+    print(f"Predicted Sentence: {predicted_sentence[0]}")
+    print(f"Actual Gloss: {actual_gloss[0]}")
+    print(f"Predicted Gloss: {predicted_gloss[0]}")
     print()

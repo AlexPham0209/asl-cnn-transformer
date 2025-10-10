@@ -9,7 +9,7 @@ model:
 
 training:
   # Basic hyperparameters
-  epochs: 150
+  epochs: 600
   batch_size: 8
   lr: 1e-4
     

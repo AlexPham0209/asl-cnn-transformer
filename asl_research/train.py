@@ -330,7 +330,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
     )
-
+        
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
@@ -402,7 +402,7 @@ def start_training(rank: int, world_size: int, config: dict):
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
     )
-
+        
     # Creating optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")

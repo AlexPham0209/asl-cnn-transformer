@@ -48,7 +48,7 @@ class ASLModel(nn.Module):
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
         self.ff_1 = nn.Linear(d_model, len(self.gloss_to_idx))
-
+        
         # Decoder
         self.trg_embedding = nn.Embedding(len(self.word_to_idx), embedding_dim=d_model)
         self.decoder = TransformerDecoder(
@@ -85,7 +85,7 @@ class ASLModel(nn.Module):
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
-
+        
         # Get the gloss sequence
         encoded = self.ff_1(memory)
         encoded = softmax(encoded, dim=-1)
