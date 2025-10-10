@@ -36,7 +36,7 @@ test, valid = train_test_split(df, test_size=0.5)
 
 # Creating dataset and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    df=train,
+    df=test,
     root_dir=PROCESSED_PATH,
     num_frames=training_config["num_frames"],
     target_size=(224, 224),
@@ -85,13 +85,13 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(10):
+for i in range(20):
     videos, glosses, gloss_lengths, sentences, _ = next(iter(dataloader))
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
     gloss_lengths = gloss_lengths.to(DEVICE)
     sentences = sentences.to(DEVICE)
-
+        
     encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
     actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)

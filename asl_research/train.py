@@ -343,8 +343,8 @@ class Trainer:
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
-    train, test = train_test_split(df, test_size=0.2)
-    test, valid = train_test_split(df, test_size=0.5)
+    train, test = train_test_split(df, test_size=0.2, random_state=training_config["seed"])
+    test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
 
     train_set = PhoenixDataset(
         df=train,
@@ -452,7 +452,7 @@ def start_training(rank: int, world_size: int, config: dict):
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
-
+    
     world_size = torch.cuda.device_count()
     print(f"GPU count: {world_size}")
 
