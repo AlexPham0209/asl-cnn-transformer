@@ -83,6 +83,7 @@ class Trainer:
         self.load_path = training_config["load_path"]
         self.file_name = training_config["file_name"]
         self.diagram_path = training_config["diagram_path"]
+        self.save_every = training_config["save_every"]
 
         # Set up loss weights
         self.recognition_weight = training_config["recognition_weight"]
@@ -110,14 +111,15 @@ class Trainer:
             print(f"Starting Average Loss: {valid_loss:>8f}", end = " - ")
             print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
             print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
-
+    
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer  = self._validate()
+            valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer  = self._validate(epoch)
 
             # Saving model
-            self._save_checkpoint(epoch, valid_loss)
+            self._save_best(epoch, valid_loss)
+            self._save_checkpoint(epoch)
 
             # Only print out diagnostic messages
             if self.gpu_id == 0:
@@ -141,17 +143,19 @@ class Trainer:
                 
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
-            if self.early_stopping.early_stop(valid_loss):
-                print("Early stopping")
-                break
+            # if self.early_stopping.early_stop(valid_loss):
+            #     print("Early stopping")
+            #     break
 
-    def _train_epoch(self, epoch: int):
+    def _train_epoch(self, epoch: int = 1):
         self.model.train()
+        self.train_dl.sampler.set_epoch(epoch)
+        
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
-
+        
         for videos, glosses, gloss_lengths, sentences, _ in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
@@ -191,9 +195,10 @@ class Trainer:
             losses / len(self.train_dl),
         )
 
-    def _validate(self):
+    def _validate(self, epoch: int = 1):
         self.model.eval()
-
+        self.valid_dl.sampler.set_epoch(epoch)
+        
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -209,14 +214,14 @@ class Trainer:
             if self.gpu_id != 0
             else tqdm(self.valid_dl, desc=f"Validating")
         )
-
+        
         for videos, glosses, gloss_lengths, sentences, sentence_lengths in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
-
+            
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(videos, max_len=torch.max(sentence_lengths).item())
                 
@@ -283,7 +288,7 @@ class Trainer:
         self.train_loss_history = checkpoint["train_loss_history"]
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
-    def _save_checkpoint(self, epoch: int, valid_loss: float):
+    def _save_best(self, epoch: int, valid_loss: float):
         if valid_loss > self.best_loss or self.gpu_id != 0:
             return
         
@@ -300,11 +305,28 @@ class Trainer:
             },
             os.path.join(self.save_path, f"{self.file_name}.pt"),
         )
+
+    def _save_checkpoint(self, epoch: int):
+        if epoch % self.save_every != 0 or self.gpu_id != 0:
+            return
+        
+        print("\nCheckpoint, saving...")
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": self.model.module.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "best_loss": self.best_loss,
+                "train_loss_history": self.train_loss_history,
+                "valid_loss_history": self.valid_loss_history,
+            },
+            os.path.join(self.save_path, f"epoch_{epoch}.pt"),
+        )
     
     def _save_diagrams(self):
         if self.gpu_id != 0:
             return
-
+        
         assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
         plt.title("Model Loss")
         plt.ylabel("Loss")
@@ -422,7 +444,7 @@ def start_training(rank: int, world_size: int, config: dict):
         training_config=training_config,
         gpu_id=rank,
     )
-
+        
     trainer.train()
     destroy_process_group()
 
