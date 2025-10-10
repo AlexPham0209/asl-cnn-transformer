@@ -12,6 +12,7 @@ training:
   epochs: 600
   batch_size: 8
   lr: 1e-4
+  save_every: 5
     
   # File path locations
   save_path: 'models'
@@ -34,6 +35,7 @@ training:
   # Misc.
   num_workers: 4
   num_frames: 30
+
 
 testing:
   load_path: 'models/best.pt'
