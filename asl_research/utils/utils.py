@@ -78,7 +78,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     N, sequence_length = x.shape
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
-    
+
 def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = None):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.
@@ -133,6 +133,23 @@ def pad_video_with_last_frame(x: Tensor, length: int = 100):
     T = x.shape[0]
     out = x[-1].repeat(length, 1, 1, 1)
     out[:T] = x
+    return out
+
+def pad_video_with_first_frame(x: Tensor, length: int = 100):
+    """
+    Given a tensor representing a video, pad the video to a specific length with the last frame.
+
+    Args:
+        x (Tensor): Original tensor (T, C, H, W)
+        length (int): Number of frames in returning video
+
+    Returns:
+        Tensor: (length, C, H, W)
+    """
+
+    T = x.shape[0]
+    out = x[0].repeat(length, 1, 1, 1)
+    out[length - T:] = x
     return out
 
 

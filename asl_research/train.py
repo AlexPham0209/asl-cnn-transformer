@@ -102,20 +102,32 @@ class Trainer:
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
         self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
-        
+
     def train(self):
-        valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer = self._validate()
+        (
+            valid_recognition_loss,
+            valid_translation_loss,
+            valid_loss,
+            valid_gloss_wer,
+            valid_sentence_wer,
+        ) = self._validate()
         if self.gpu_id == 0:
             print(f"Starting Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
             print(f"Starting Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-            print(f"Starting Average Loss: {valid_loss:>8f}", end = " - ")
-            print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+            print(f"Starting Average Loss: {valid_loss:>8f}", end=" - ")
+            print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
             print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
-    
+
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            valid_recognition_loss, valid_translation_loss, valid_loss, valid_gloss_wer, valid_sentence_wer  = self._validate(epoch)
+            (
+                valid_recognition_loss,
+                valid_translation_loss,
+                valid_loss,
+                valid_gloss_wer,
+                valid_sentence_wer,
+            ) = self._validate(epoch)
 
             # Saving model
             self._save_best(epoch, valid_loss)
@@ -134,13 +146,13 @@ class Trainer:
                 print(f"Training Average Gloss Loss: {train_recognition_loss:>8f}", end=" - ")
                 print(f"Training Average Sentence Loss: {train_translation_loss:>8f}", end=" - ")
                 print(f"Training Average Loss: {train_loss:>8f}")
-                
+
                 print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
                 print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-                print(f"Valid Average Loss: {valid_loss:>8f}", end = " - ")
-                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end = " - ")
+                print(f"Valid Average Loss: {valid_loss:>8f}", end=" - ")
+                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
                 print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
-                
+
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             # if self.early_stopping.early_stop(valid_loss):
@@ -150,33 +162,33 @@ class Trainer:
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
         self.train_dl.sampler.set_epoch(epoch)
-        
+
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
-        
+
         for videos, glosses, gloss_lengths, sentences, _ in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
-            
+
             self.optimizer.zero_grad()
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
-            
+
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-            
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-            
+
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -185,7 +197,7 @@ class Trainer:
                 + self.translation_weight * translation_loss
             )
             losses += loss.item()
-            
+
             loss.backward()
             self.optimizer.step()
 
@@ -198,7 +210,7 @@ class Trainer:
     def _validate(self, epoch: int = 1):
         self.model.eval()
         self.valid_dl.sampler.set_epoch(epoch)
-        
+
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -209,33 +221,31 @@ class Trainer:
         actual_glosses = []
         predicted_glosses = []
 
-        dl = (
-            self.valid_dl
-            if self.gpu_id != 0
-            else tqdm(self.valid_dl, desc=f"Validating")
-        )
-        
+        dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"Validating")
+
         for videos, glosses, gloss_lengths, sentences, sentence_lengths in dl:
             videos = videos.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
-            
+
             with torch.no_grad():
-                encoder_out, decoder_out = self.model.module.greedy_decode(videos, max_len=torch.max(sentence_lengths).item())
-                
+                encoder_out, decoder_out = self.model.module.greedy_decode(
+                    videos, max_len=torch.max(sentence_lengths).item()
+                )
+
             # # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-            
+
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-            
+
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
@@ -251,12 +261,12 @@ class Trainer:
             T, N, _ = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
             recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
-            
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-            
+
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -265,7 +275,7 @@ class Trainer:
                 + self.translation_weight * translation_loss
             )
             losses += loss.item()
-        
+
         return (
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
@@ -291,7 +301,7 @@ class Trainer:
     def _save_best(self, epoch: int, valid_loss: float):
         if valid_loss > self.best_loss or self.gpu_id != 0:
             return
-        
+
         self.best_loss = valid_loss
         print("\nNew best model, saving...")
         torch.save(
@@ -309,7 +319,7 @@ class Trainer:
     def _save_checkpoint(self, epoch: int):
         if epoch % self.save_every != 0 or self.gpu_id != 0:
             return
-        
+
         print("\nCheckpoint, saving...")
         torch.save(
             {
@@ -322,11 +332,11 @@ class Trainer:
             },
             os.path.join(self.save_path, f"epoch_{epoch}.pt"),
         )
-    
+
     def _save_diagrams(self):
         if self.gpu_id != 0:
             return
-        
+
         assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
         plt.title("Model Loss")
         plt.ylabel("Loss")
@@ -352,7 +362,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         target_size=(224, 224),
     )
-        
+
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
@@ -403,7 +413,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     vocab, train_dl, valid_dl, test_dl = create_dataloaders(PROCESSED_PATH, training_config)
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
-    
+
     assert "-" in gloss_to_idx
     assert "<sos>" in word_to_idx
     assert "<eos>" in word_to_idx
@@ -424,7 +434,7 @@ def start_training(rank: int, world_size: int, config: dict):
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
     )
-        
+
     # Creating optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
@@ -444,7 +454,7 @@ def start_training(rank: int, world_size: int, config: dict):
         training_config=training_config,
         gpu_id=rank,
     )
-        
+
     trainer.train()
     destroy_process_group()
 
@@ -452,7 +462,7 @@ def start_training(rank: int, world_size: int, config: dict):
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
-    
+
     world_size = torch.cuda.device_count()
     print(f"GPU count: {world_size}")
 

@@ -91,19 +91,15 @@ for i in range(20):
     glosses = glosses.to(DEVICE)
     gloss_lengths = gloss_lengths.to(DEVICE)
     sentences = sentences.to(DEVICE)
-        
+
     encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
 
     actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
     predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
-            
-    actual_sentence = decode_sentences(
-        sentences.tolist(), word_to_idx, idx_to_word
-    )
-    predicted_sentence = decode_sentences(
-        decoder_out.tolist(), word_to_idx, idx_to_word
-    )
-    
+
+    actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
+    predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
+
     print(f"Actual Sentence: {actual_sentence[0]}")
     print(f"Predicted Sentence: {predicted_sentence[0]}")
     print(f"Actual Gloss: {actual_gloss[0]}")

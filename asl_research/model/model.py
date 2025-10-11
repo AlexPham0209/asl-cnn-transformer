@@ -48,7 +48,7 @@ class ASLModel(nn.Module):
             num_layers=num_encoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
         self.ff_1 = nn.Linear(d_model, len(self.gloss_to_idx))
-        
+
         # Decoder
         self.trg_embedding = nn.Embedding(len(self.word_to_idx), embedding_dim=d_model)
         self.decoder = TransformerDecoder(
@@ -85,7 +85,7 @@ class ASLModel(nn.Module):
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
-        
+
         # Get the gloss sequence
         encoded = self.ff_1(memory)
         encoded = softmax(encoded, dim=-1)
@@ -95,7 +95,7 @@ class ASLModel(nn.Module):
             list(filter(lambda gloss: gloss != self.gloss_to_idx["-"], sample))
             for sample in encoded
         ]
-        
+
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
@@ -105,7 +105,7 @@ class ASLModel(nn.Module):
         )
         # Fill first column (or the beginning of the sequences) with <SOS> tokens
         sequence[:, 0] = self.word_to_idx["<sos>"]
-        
+
         for t in range(1, max_len):
             out = sequence[:, :t]
             trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(src.device)
@@ -114,7 +114,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask)
             out = softmax(self.ff_2(out), dim=-1)
-    
+
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

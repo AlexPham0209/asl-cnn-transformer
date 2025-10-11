@@ -32,17 +32,22 @@ class PhoenixDataset(Dataset):
         self,
         df: pd.DataFrame,
         root_dir: str,
-        num_frames: int = 120,
         target_size: tuple = (224, 224),
-        max_start_frame: int = 10
+        num_frames: int | tuple[int, int] = 120,
+        max_start_frame: int = 10,
+        min_end_frame: int = 10,
+        random_sampling: bool = False,
     ):
         super().__init__()
         self.dataset_path = os.path.join(root_dir, "dataset.csv")
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
+
         self.num_frames = num_frames
         self.max_start_frame = max_start_frame
+        self.min_end_frame = min_end_frame
+        self.random_sampling = random_sampling
 
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
@@ -77,6 +82,7 @@ class PhoenixDataset(Dataset):
                 Normalize(mean, std),
                 Resize((256, 256)),
                 RandomCrop(target_size),
+                RandomRotation(10),
                 ColorJitter(brightness=(0.5, 1.0), hue=0.1),
             ]
         )
@@ -103,13 +109,7 @@ class PhoenixDataset(Dataset):
             + [self.word_to_idx["<eos>"]]
         )
 
-        # Load video from path and transpose time and batch dimensions
-        # assert os.path.exists(path)
-        # video: EncodedVideo = EncodedVideo.from_path(path)
-        # clip_duration = video.duration
-        # video_data = video.get_clip(start_sec=0, end_sec=clip_duration)["video"].transpose(0, 1)
-        # video_data = self.transform(video_data)
-
+        # Get video and apply augmentations on it
         assert os.path.exists(processed_path), "Processed path doesn't exists"
         video_data = self.read_video(processed_path)
         video_data = self.transform(video_data)
@@ -130,10 +130,13 @@ class PhoenixDataset(Dataset):
         frame_files = sorted(
             os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))
         )
-        
-        frame_positions = torch.linspace(
-            start=random.randint(0, self.max_start_frame), end=len(frame_files) - 1, steps=self.num_frames, dtype=int
-        ) 
+
+        frame_positions = (
+            self.random_frame_subsampling(frame_files)
+            if self.random_sampling
+            else self.uniform_frame_subsampling(frame_files)
+        )
+
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
 
@@ -141,17 +144,42 @@ class PhoenixDataset(Dataset):
                 continue
 
             frames.append(read_file(frame))
-            
+
         return torch.stack(decode_jpeg(frames), dim=0)
-        
+
+    def uniform_frame_subsampling(self, frames):
+        start = random.randint(0, self.max_start_frame)
+        end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
+        steps = (
+            self.num_frames
+            if isinstance(self.num_frames, tuple[int, int])
+            else random.randint(self.num_frames[0], self.num_frames[1])
+        )
+
+        return torch.linspace(start=start, end=end, steps=steps, dtype=int)
+
+    def random_frame_subsampling(self, frames):
+        start = random.randint(0, self.max_start_frame)
+        end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
+        steps = (
+            self.num_frames
+            if isinstance(self.num_frames, tuple[int, int])
+            else random.randint(self.num_frames[0], self.num_frames[1])
+        )
+
+        frame_positions, _ = torch.randint(low=start, high=end, size=(steps,), dtype=int).sort()
+
+        return frame_positions
+
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
 
+        # Assumes videos are equal length
         videos = torch.stack(videos, dim=0)
-
+        
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
@@ -161,7 +189,6 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-        
 
     @staticmethod
     def collate_fn_last_frame_padding(batch: list):
@@ -169,21 +196,25 @@ class PhoenixDataset(Dataset):
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
 
+        # Padding videos with its last frame
         max_video_length = max([video.shape[0] for video in videos])
         videos = list(
             map(lambda video: pad_video_with_last_frame(video, max_video_length), videos)
         )
+        videos = videos.stack()
 
+        # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-
+        
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-    
+
     @staticmethod
     def collate_fn_zero_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
@@ -191,15 +222,14 @@ class PhoenixDataset(Dataset):
         word_pad_token = word_pad_token[0]
 
         max_video_length = max([video.shape[0] for video in videos])
-        videos = list(
-            map(lambda video: pad_video_with_value(video, max_video_length, 0), videos)
-        )
+        videos = list(map(lambda video: pad_video_with_value(video, max_video_length, 0), videos))
+        videos = videos.stack()
 
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-        
+
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
