@@ -46,7 +46,7 @@ def test_dataset_split():
 
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t", device=DEVICE)
+    dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
     dataloader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
     
     for i in range(5):

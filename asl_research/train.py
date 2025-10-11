@@ -78,7 +78,7 @@ class Trainer:
 
         self.epochs = training_config["epochs"]
         self.curr_epoch = 1
-
+    
         self.save_path = training_config["save_path"]
         self.load_path = training_config["load_path"]
         self.file_name = training_config["file_name"]
@@ -130,7 +130,7 @@ class Trainer:
             ) = self._validate(epoch)
 
             # Saving model
-            self._save_best(epoch, valid_sentence_wer)
+            self._save_best(epoch, valid_loss)
             self._save_checkpoint(epoch)
 
             # Only print out diagnostic messages
@@ -234,7 +234,7 @@ class Trainer:
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, max_len=torch.max(sentence_lengths).item()
                 )
-            
+
             # # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
@@ -361,14 +361,18 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
+        max_start_frame=training_config["max_start_frame"],
+        min_end_frame=training_config["min_end_frame"],
+        random_sampling=training_config["random_sampling"],
+        is_train=True
     )
-
+        
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
-        is_train=False,
+        is_train=False
     )
 
     test_set = PhoenixDataset(

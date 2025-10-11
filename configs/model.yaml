@@ -34,7 +34,12 @@ training:
     
   # Misc.
   num_workers: 4
+
+  # Dataset
   num_frames: 30
+  max_start_frame: 10
+  min_end_frame: 10
+  random_sampling: False
 
 
 testing:

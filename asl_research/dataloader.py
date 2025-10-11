@@ -14,6 +14,8 @@ from torchvision.transforms import (
     RandomRotation,
     Resize,
     Normalize,
+    GaussianBlur,
+    CenterCrop
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
@@ -34,8 +36,8 @@ class PhoenixDataset(Dataset):
         root_dir: str,
         target_size: tuple = (224, 224),
         num_frames: int | list = 120,
-        max_start_frame: int = 10,
-        min_end_frame: int = 10,
+        max_start_frame: int = 0,
+        min_end_frame: int = 0,
         random_sampling: bool = False,
         is_train: bool = True
     ):
@@ -49,7 +51,7 @@ class PhoenixDataset(Dataset):
         self.max_start_frame = max_start_frame
         self.min_end_frame = min_end_frame
         self.random_sampling = random_sampling
-
+        
         self.is_train = is_train
 
         assert os.path.exists(self.dataset_path), (
@@ -84,12 +86,14 @@ class PhoenixDataset(Dataset):
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
                 Resize((256, 256)),
-                RandomCrop(target_size)
+                
             ]
         )
 
+        self.center_crop = CenterCrop(target_size)
         self.augment = Compose(
             [
+                RandomCrop(target_size),
                 RandomRotation(10),
                 ColorJitter(brightness=(0.5, 1.0), hue=0.1),
             ]
@@ -124,6 +128,8 @@ class PhoenixDataset(Dataset):
 
         if self.is_train:
             video_data = self.augment(video_data)
+        else:
+            video_data = self.center_crop(video_data)
 
         return (
             video_data,
