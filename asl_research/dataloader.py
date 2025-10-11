@@ -37,6 +37,7 @@ class PhoenixDataset(Dataset):
         max_start_frame: int = 10,
         min_end_frame: int = 10,
         random_sampling: bool = False,
+        is_train: bool = True
     ):
         super().__init__()
         self.dataset_path = os.path.join(root_dir, "dataset.csv")
@@ -48,6 +49,8 @@ class PhoenixDataset(Dataset):
         self.max_start_frame = max_start_frame
         self.min_end_frame = min_end_frame
         self.random_sampling = random_sampling
+
+        self.is_train = is_train
 
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
@@ -76,12 +79,17 @@ class PhoenixDataset(Dataset):
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
         # Data augmentation settings
-        self.transform = Compose(
+        self.normalize = Compose(
             [
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
                 Resize((256, 256)),
-                RandomCrop(target_size),
+                RandomCrop(target_size)
+            ]
+        )
+
+        self.augment = Compose(
+            [
                 RandomRotation(10),
                 ColorJitter(brightness=(0.5, 1.0), hue=0.1),
             ]
@@ -112,8 +120,11 @@ class PhoenixDataset(Dataset):
         # Get video and apply augmentations on it
         assert os.path.exists(processed_path), "Processed path doesn't exists"
         video_data = self.read_video(processed_path)
-        video_data = self.transform(video_data)
+        video_data = self.normalize(video_data)
 
+        if self.is_train:
+            video_data = self.augment(video_data)
+        
         return (
             video_data,
             gloss_tokens,
@@ -121,7 +132,7 @@ class PhoenixDataset(Dataset):
             self.gloss_to_idx["<pad>"],
             self.word_to_idx["<pad>"],
         )
-
+    
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
 
@@ -136,7 +147,7 @@ class PhoenixDataset(Dataset):
             if self.random_sampling
             else self.uniform_frame_subsampling(frame_files)
         )
-
+        
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
 
@@ -180,11 +191,13 @@ class PhoenixDataset(Dataset):
         # Assumes videos are equal length
         videos = torch.stack(videos, dim=0)
         
+        # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
@@ -212,7 +225,7 @@ class PhoenixDataset(Dataset):
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-        
+
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
 
     @staticmethod
@@ -221,15 +234,18 @@ class PhoenixDataset(Dataset):
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
 
+        # Padding videos with 0
         max_video_length = max([video.shape[0] for video in videos])
         videos = list(map(lambda video: pad_video_with_value(video, max_video_length, 0), videos))
         videos = videos.stack()
 
+        # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
 
+        # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
