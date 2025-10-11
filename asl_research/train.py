@@ -130,7 +130,7 @@ class Trainer:
             ) = self._validate(epoch)
 
             # Saving model
-            self._save_best(epoch, valid_loss)
+            self._save_best(epoch, valid_sentence_wer)
             self._save_checkpoint(epoch)
 
             # Only print out diagnostic messages
@@ -234,7 +234,7 @@ class Trainer:
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, max_len=torch.max(sentence_lengths).item()
                 )
-
+            
             # # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
@@ -319,7 +319,7 @@ class Trainer:
     def _save_checkpoint(self, epoch: int):
         if epoch % self.save_every != 0 or self.gpu_id != 0:
             return
-
+        
         print("\nCheckpoint, saving...")
         torch.save(
             {
@@ -359,22 +359,24 @@ def create_dataloaders(path: str, training_config: dict):
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
-        num_frames=training_config["num_frames"],
         target_size=(224, 224),
+        num_frames=training_config["num_frames"],
     )
 
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
-        num_frames=training_config["num_frames"],
         target_size=(224, 224),
+        num_frames=training_config["num_frames"],
+        is_train=False,
     )
 
     test_set = PhoenixDataset(
         df=test,
         root_dir=PROCESSED_PATH,
-        num_frames=training_config["num_frames"],
         target_size=(224, 224),
+        num_frames=training_config["num_frames"],
+        is_train=False
     )
 
     # Creating dataloaders for each subset

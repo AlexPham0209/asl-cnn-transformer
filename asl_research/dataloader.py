@@ -33,7 +33,7 @@ class PhoenixDataset(Dataset):
         df: pd.DataFrame,
         root_dir: str,
         target_size: tuple = (224, 224),
-        num_frames: int | tuple[int, int] = 120,
+        num_frames: int | list = 120,
         max_start_frame: int = 10,
         min_end_frame: int = 10,
         random_sampling: bool = False,
@@ -124,7 +124,7 @@ class PhoenixDataset(Dataset):
 
         if self.is_train:
             video_data = self.augment(video_data)
-        
+
         return (
             video_data,
             gloss_tokens,
@@ -163,7 +163,7 @@ class PhoenixDataset(Dataset):
         end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
         steps = (
             self.num_frames
-            if isinstance(self.num_frames, tuple[int, int])
+            if isinstance(self.num_frames, list)
             else random.randint(self.num_frames[0], self.num_frames[1])
         )
 

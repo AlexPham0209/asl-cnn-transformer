@@ -162,7 +162,7 @@ class SpatialEmbedding(nn.Module):
                 )
             case "resnet50":
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-
+        
         self.ff = nn.Linear(hidden_size, d_model)
 
     def forward(self, x: Tensor):
