@@ -188,7 +188,7 @@ class Trainer:
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-
+        
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -210,7 +210,7 @@ class Trainer:
     def _validate(self, epoch: int = 1):
         self.model.eval()
         self.valid_dl.sampler.set_epoch(epoch)
-
+        
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -285,7 +285,7 @@ class Trainer:
         )
 
     def _load_checkpoint(self):
-        if len(self.load_path) <= 0 and not isinstance(self.model, ASLModel):
+        if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
             return
 
         assert os.path.exists(self.load_path), "Load path doesn't exist"
@@ -382,7 +382,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         is_train=False
     )
-
+    
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,

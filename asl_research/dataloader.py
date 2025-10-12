@@ -81,21 +81,21 @@ class PhoenixDataset(Dataset):
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
         # Data augmentation settings
-        self.normalize = Compose(
+        self.train_transform = Compose(
             [
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
-                Resize((256, 256)),
-                
+                Resize((256, 256)),  
+                RandomCrop(target_size),
             ]
         )
-
-        self.center_crop = CenterCrop(target_size)
-        self.augment = Compose(
+        
+        self.valid_transform = Compose(
             [
-                RandomCrop(target_size),
-                RandomRotation(10),
-                ColorJitter(brightness=(0.5, 1.0), hue=0.1),
+                Lambda(self.normalize_color),
+                Normalize(mean, std),
+                Resize((256, 256)),  
+                CenterCrop(target_size)
             ]
         )
 
@@ -124,12 +124,7 @@ class PhoenixDataset(Dataset):
         # Get video and apply augmentations on it
         assert os.path.exists(processed_path), "Processed path doesn't exists"
         video_data = self.read_video(processed_path)
-        video_data = self.normalize(video_data)
-
-        if self.is_train:
-            video_data = self.augment(video_data)
-        else:
-            video_data = self.center_crop(video_data)
+        video_data = self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
 
         return (
             video_data,
@@ -169,10 +164,10 @@ class PhoenixDataset(Dataset):
         end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
         steps = (
             self.num_frames
-            if isinstance(self.num_frames, list)
+            if isinstance(self.num_frames, int)
             else random.randint(self.num_frames[0], self.num_frames[1])
         )
-
+        
         return torch.linspace(start=start, end=end, steps=steps, dtype=int)
 
     def random_frame_subsampling(self, frames):
@@ -180,7 +175,7 @@ class PhoenixDataset(Dataset):
         end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
         steps = (
             self.num_frames
-            if isinstance(self.num_frames, tuple[int, int])
+            if isinstance(self.num_frames, int)
             else random.randint(self.num_frames[0], self.num_frames[1])
         )
 
@@ -233,13 +228,13 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-
+    
     @staticmethod
     def collate_fn_zero_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
-
+        
         # Padding videos with 0
         max_video_length = max([video.shape[0] for video in videos])
         videos = list(map(lambda video: pad_video_with_value(video, max_video_length, 0), videos))
