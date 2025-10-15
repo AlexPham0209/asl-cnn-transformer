@@ -210,7 +210,7 @@ class PhoenixDataset(Dataset):
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
 
     @staticmethod
     def collate_fn_last_frame_padding(batch: list):
@@ -236,7 +236,7 @@ class PhoenixDataset(Dataset):
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
 
     @staticmethod
     def collate_fn_zero_padding(batch: list):
@@ -253,7 +253,7 @@ class PhoenixDataset(Dataset):
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-        
+
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)

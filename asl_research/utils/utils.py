@@ -188,3 +188,4 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
         for sample in sequence
     ]
     return sequence
+

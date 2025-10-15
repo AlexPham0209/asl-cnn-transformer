@@ -227,8 +227,10 @@ class Trainer:
         for videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
             videos = videos.to(self.gpu_id)
             video_lengths = video_lengths.to(self.gpu_id)
+
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
+
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
 
@@ -236,7 +238,7 @@ class Trainer:
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
-
+            
             # # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)

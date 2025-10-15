@@ -58,7 +58,7 @@ class ASLModel(nn.Module):
 
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src_mask = None
-        if src_lengths:
+        if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
 
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
@@ -89,11 +89,11 @@ class ASLModel(nn.Module):
         src = src.unsqueeze(0) if src.dim() <= 1 else src
 
         src_mask = None
-        if src_lengths:
+        if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src, src_mask) * math.sqrt(self.d_model))
+        memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
 
         # Get the gloss sequence
         encoded = self.ff_1(memory)
