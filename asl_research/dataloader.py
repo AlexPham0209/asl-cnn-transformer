@@ -177,8 +177,8 @@ class PhoenixDataset(Dataset):
             self.num_frames
             if isinstance(self.num_frames, int)
             else random.randint(self.num_frames[0], self.num_frames[1])
-        )
-
+        )   
+        
         frame_positions, _ = torch.randint(low=start, high=end, size=(steps,), dtype=int).sort()
 
         return frame_positions
@@ -188,7 +188,7 @@ class PhoenixDataset(Dataset):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
-
+        
         # Assumes videos are equal length
         video_lengths = torch.tensor([video.shape[0] for video in videos])
         max_video_length = video_lengths.max().item()
@@ -218,8 +218,7 @@ class PhoenixDataset(Dataset):
         videos = list(
             map(lambda video: pad_video_with_last_frame(video, max_video_length), videos)
         )
-        video_padding_mask = generate_video_padding_mask(video_lengths)
-        videos = videos.stack()
+        videos = torch.stack()
 
         # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
@@ -232,18 +231,16 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-    
+
     @staticmethod
     def collate_fn_zero_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
-        
+
         # Padding videos with 0
         video_lengths = torch.tensor([video.shape[0] for video in videos])
-        max_video_length = video_lengths.max().item()
-        videos = list(map(lambda video: pad_video_with_value(video, max_video_length, 0), videos))
-        videos = videos.stack()
+        videos = pad_sequence(videos, batch_first=True, padding_value=0)
 
         # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])

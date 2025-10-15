@@ -474,7 +474,7 @@ def main():
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
-
+    
 
 if __name__ == "__main__":
     main()

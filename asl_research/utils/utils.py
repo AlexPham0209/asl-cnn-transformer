@@ -94,7 +94,7 @@ def generate_video_padding_mask(lengths: Optional[Tensor] = None, max_length: Op
 
     max_length = torch.max(lengths, dim=-1)[0].item() if not max_length else max_length
 
-    lengths = lengths.unsqueeze(0).transpose(0, 1)
+    lengths = lengths.unsqueeze(1)
     indices = torch.arange(0, max_length).unsqueeze(0)
 
     out = indices <= lengths - 1
@@ -185,3 +185,4 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
         for sample in sequence
     ]
     return sequence
+
