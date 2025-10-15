@@ -19,7 +19,7 @@ from torchvision.transforms import (
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
-from asl_research.utils.utils import pad_video_with_last_frame, pad_video_with_value
+from asl_research.utils.utils import generate_video_padding_mask, pad_video_with_last_frame, pad_video_with_value
 import random
 
 # mean = (0.53724027, 0.5272855, 0.51954997)
@@ -154,7 +154,7 @@ class PhoenixDataset(Dataset):
 
             if not frame.endswith(".jpg"):
                 continue
-
+            
             frames.append(read_file(frame))
 
         return torch.stack(decode_jpeg(frames), dim=0)
@@ -190,6 +190,8 @@ class PhoenixDataset(Dataset):
         word_pad_token = word_pad_token[0]
 
         # Assumes videos are equal length
+        video_lengths = torch.tensor([video.shape[0] for video in videos])
+        max_video_length = video_lengths.max().item()
         videos = torch.stack(videos, dim=0)
         
         # Padding gloss sequences
@@ -211,10 +213,12 @@ class PhoenixDataset(Dataset):
         word_pad_token = word_pad_token[0]
 
         # Padding videos with its last frame
-        max_video_length = max([video.shape[0] for video in videos])
+        video_lengths = torch.tensor([video.shape[0] for video in videos])
+        max_video_length = video_lengths.max().item()
         videos = list(
             map(lambda video: pad_video_with_last_frame(video, max_video_length), videos)
         )
+        video_padding_mask = generate_video_padding_mask(video_lengths)
         videos = videos.stack()
 
         # Padding gloss sequences
@@ -222,7 +226,7 @@ class PhoenixDataset(Dataset):
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-
+        
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
@@ -236,7 +240,8 @@ class PhoenixDataset(Dataset):
         word_pad_token = word_pad_token[0]
         
         # Padding videos with 0
-        max_video_length = max([video.shape[0] for video in videos])
+        video_lengths = torch.tensor([video.shape[0] for video in videos])
+        max_video_length = video_lengths.max().item()
         videos = list(map(lambda video: pad_video_with_value(video, max_video_length, 0), videos))
         videos = videos.stack()
 
@@ -250,4 +255,5 @@ class PhoenixDataset(Dataset):
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
-        return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+    

@@ -9,7 +9,7 @@ from torch.nn.functional import softmax, log_softmax
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.spatial_embedding import SpatialEmbedding
-from asl_research.utils.utils import generate_square_subsequent_mask
+from asl_research.utils.utils import generate_square_subsequent_mask, generate_video_padding_mask
 
 
 class ASLModel(nn.Module):
@@ -56,15 +56,16 @@ class ASLModel(nn.Module):
         )
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
 
-    def forward(self, src: Tensor, trg: Tensor):
+    def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
+        src_mask: Tensor = generate_video_padding_mask(src_lengths).to(src.device)
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 
-        src = self.encoder(src)
-        trg = self.decoder(trg, src, trg_mask)
-
+        src = self.encoder(src, src_mask)
+        trg = self.decoder(trg, src, trg_mask, src_mask)
+        
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 

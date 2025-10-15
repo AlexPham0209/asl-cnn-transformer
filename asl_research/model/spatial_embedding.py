@@ -183,6 +183,6 @@ class SpatialEmbedding(nn.Module):
         # Using pretrained weights
         x = self.conv(x).to(x.device)
         x = self.ff(x)
-
+        
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)

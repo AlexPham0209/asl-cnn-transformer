@@ -79,7 +79,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
 
-def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = None):
+def generate_video_padding_mask(lengths: Optional[Tensor] = None, max_length: Optional[int] = None):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.
 
@@ -89,6 +89,9 @@ def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = Non
     Returns:
         Tensor: Masking boolean tensor (batch_size, 1, 1, sequence_size)
     """
+    if lengths is None:
+        return None
+
     max_length = torch.max(lengths, dim=-1)[0].item() if not max_length else max_length
 
     lengths = lengths.unsqueeze(0).transpose(0, 1)
