@@ -79,7 +79,9 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
 
-def generate_video_padding_mask(lengths: Optional[Tensor] = None, max_length: Optional[int] = None):
+def generate_video_padding_mask(
+    lengths: Optional[Tensor] = None, max_length: Optional[int] = None
+):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.
 
@@ -138,6 +140,7 @@ def pad_video_with_last_frame(x: Tensor, length: int = 100):
     out[:T] = x
     return out
 
+
 def pad_video_with_first_frame(x: Tensor, length: int = 100):
     """
     Given a tensor representing a video, pad the video to a specific length with the last frame.
@@ -152,7 +155,7 @@ def pad_video_with_first_frame(x: Tensor, length: int = 100):
 
     T = x.shape[0]
     out = x[0].repeat(length, 1, 1, 1)
-    out[length - T:] = x
+    out[length - T :] = x
     return out
 
 
@@ -185,4 +188,3 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
         for sample in sequence
     ]
     return sequence
-

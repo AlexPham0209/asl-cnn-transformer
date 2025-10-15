@@ -1,5 +1,7 @@
 import math
+import os
 from matplotlib import pyplot as plt
+import pandas as pd
 import pytest
 import torch 
 from asl_research.dataloader import PhoenixDataset
@@ -46,11 +48,14 @@ def test_dataset_split():
 
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
+    df = pd.read_csv(os.path.join("data", "processed", "phoenixweather2014t", "dataset.csv"))
+    dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=True)
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=PhoenixDataset.collate_fn_zero_padding)
     
-    for i in range(5):
-        videos, gloss_sequences, gloss_lengths, sentences = next(iter(dataloader))
+    for i in range(10):
+        videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths = next(iter(dataloader))
+        print(videos.shape)
+        print(video_lengths)
         plt.imshow(videos[0][0].permute(1, 2, 0))
         print(decode_glosses(gloss_sequences.tolist(), dataset.gloss_to_idx, dataset.idx_to_gloss))
         print(gloss_lengths)

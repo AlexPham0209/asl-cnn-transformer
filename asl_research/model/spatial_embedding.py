@@ -162,7 +162,7 @@ class SpatialEmbedding(nn.Module):
                 )
             case "resnet50":
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-        
+
         self.ff = nn.Linear(hidden_size, d_model)
 
     def forward(self, x: Tensor):
@@ -183,6 +183,6 @@ class SpatialEmbedding(nn.Module):
         # Using pretrained weights
         x = self.conv(x).to(x.device)
         x = self.ff(x)
-        
+
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)

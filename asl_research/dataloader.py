@@ -15,11 +15,15 @@ from torchvision.transforms import (
     Resize,
     Normalize,
     GaussianBlur,
-    CenterCrop
+    CenterCrop,
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
-from asl_research.utils.utils import generate_video_padding_mask, pad_video_with_last_frame, pad_video_with_value
+from asl_research.utils.utils import (
+    generate_video_padding_mask,
+    pad_video_with_last_frame,
+    pad_video_with_value,
+)
 import random
 
 # mean = (0.53724027, 0.5272855, 0.51954997)
@@ -36,10 +40,9 @@ class PhoenixDataset(Dataset):
         root_dir: str,
         target_size: tuple = (224, 224),
         num_frames: int | list = 120,
-        max_start_frame: int = 0,
-        min_end_frame: int = 0,
-        random_sampling: bool = False,
-        is_train: bool = True
+        sampling_ratio: int = 2,
+        random_subsampling: bool = True,
+        is_train: bool = True,
     ):
         super().__init__()
         self.dataset_path = os.path.join(root_dir, "dataset.csv")
@@ -48,10 +51,9 @@ class PhoenixDataset(Dataset):
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
 
         self.num_frames = num_frames
-        self.max_start_frame = max_start_frame
-        self.min_end_frame = min_end_frame
-        self.random_sampling = random_sampling
-        
+        self.sampling_ratio = sampling_ratio
+        self.random_sampling = random_subsampling
+
         self.is_train = is_train
 
         assert os.path.exists(self.dataset_path), (
@@ -85,17 +87,17 @@ class PhoenixDataset(Dataset):
             [
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
-                Resize((256, 256)),  
+                Resize((256, 256)),
                 RandomCrop(target_size),
             ]
         )
-        
+
         self.valid_transform = Compose(
             [
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
-                Resize((256, 256)),  
-                CenterCrop(target_size)
+                Resize((256, 256)),
+                CenterCrop(target_size),
             ]
         )
 
@@ -124,7 +126,9 @@ class PhoenixDataset(Dataset):
         # Get video and apply augmentations on it
         assert os.path.exists(processed_path), "Processed path doesn't exists"
         video_data = self.read_video(processed_path)
-        video_data = self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
+        video_data = (
+            self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
+        )
 
         return (
             video_data,
@@ -133,7 +137,7 @@ class PhoenixDataset(Dataset):
             self.gloss_to_idx["<pad>"],
             self.word_to_idx["<pad>"],
         )
-    
+
     def get_vocab(self):
         return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
 
@@ -143,18 +147,21 @@ class PhoenixDataset(Dataset):
             os.listdir(path), key=lambda p: int(p.split("_")[1].replace(".jpg", ""))
         )
 
-        frame_positions = (
-            self.random_frame_subsampling(frame_files)
-            if self.random_sampling
-            else self.uniform_frame_subsampling(frame_files)
+        start = (
+            random.randint(0, self.sampling_ratio - 1)
+            if self.is_train and self.random_sampling
+            else 0
         )
-        
+        frame_positions = torch.arange(
+            start=start, end=len(frame_files) - 1, step=self.sampling_ratio
+        )
+
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
 
             if not frame.endswith(".jpg"):
                 continue
-            
+
             frames.append(read_file(frame))
 
         return torch.stack(decode_jpeg(frames), dim=0)
@@ -167,18 +174,17 @@ class PhoenixDataset(Dataset):
             if isinstance(self.num_frames, int)
             else random.randint(self.num_frames[0], self.num_frames[1])
         )
-        
+
         return torch.linspace(start=start, end=end, steps=steps, dtype=int)
 
     def random_frame_subsampling(self, frames):
         start = random.randint(0, self.max_start_frame)
-        end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
         steps = (
             self.num_frames
             if isinstance(self.num_frames, int)
             else random.randint(self.num_frames[0], self.num_frames[1])
-        )   
-        
+        )
+
         frame_positions, _ = torch.randint(low=start, high=end, size=(steps,), dtype=int).sort()
 
         return frame_positions
@@ -188,12 +194,12 @@ class PhoenixDataset(Dataset):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
-        
+
         # Assumes videos are equal length
         video_lengths = torch.tensor([video.shape[0] for video in videos])
         max_video_length = video_lengths.max().item()
         videos = torch.stack(videos, dim=0)
-        
+
         # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
@@ -205,7 +211,7 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-    
+
     @staticmethod
     def collate_fn_last_frame_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
@@ -225,7 +231,7 @@ class PhoenixDataset(Dataset):
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-        
+
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
@@ -253,4 +259,3 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-    

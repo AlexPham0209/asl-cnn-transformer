@@ -68,7 +68,7 @@ class ASLModel(nn.Module):
 
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
-        
+
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 
@@ -80,14 +80,14 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
-        src_lengths: Optional[Tensor] = None, 
+        src_lengths: Optional[Tensor] = None,
         max_len: int = 30,
     ):
         self.eval()
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
-    
+
         src_mask = None
         if src_lengths:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
@@ -123,7 +123,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
-            
+
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

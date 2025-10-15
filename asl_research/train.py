@@ -78,7 +78,7 @@ class Trainer:
 
         self.epochs = training_config["epochs"]
         self.curr_epoch = 1
-    
+
         self.save_path = training_config["save_path"]
         self.load_path = training_config["load_path"]
         self.file_name = training_config["file_name"]
@@ -188,7 +188,7 @@ class Trainer:
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected)
-        
+
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -210,7 +210,7 @@ class Trainer:
     def _validate(self, epoch: int = 1):
         self.model.eval()
         self.valid_dl.sampler.set_epoch(epoch)
-        
+
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -319,7 +319,7 @@ class Trainer:
     def _save_checkpoint(self, epoch: int):
         if epoch % self.save_every != 0 or self.gpu_id != 0:
             return
-        
+
         print("\nCheckpoint, saving...")
         torch.save(
             {
@@ -364,15 +364,15 @@ def create_dataloaders(path: str, training_config: dict):
         max_start_frame=training_config["max_start_frame"],
         min_end_frame=training_config["min_end_frame"],
         random_sampling=training_config["random_sampling"],
-        is_train=True
+        is_train=True,
     )
-        
+
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
-        is_train=False
+        is_train=False,
     )
 
     test_set = PhoenixDataset(
@@ -380,9 +380,9 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
-        is_train=False
+        is_train=False,
     )
-    
+
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
@@ -474,7 +474,7 @@ def main():
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
     mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
-    
+
 
 if __name__ == "__main__":
     main()
