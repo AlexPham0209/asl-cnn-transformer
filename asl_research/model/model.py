@@ -57,8 +57,11 @@ class ASLModel(nn.Module):
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
 
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
-        src_mask: Tensor = generate_video_padding_mask(src_lengths).to(src.device)
-        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
+        src_mask = None
+        if src_lengths:
+            src_mask = generate_video_padding_mask(src_lengths).to(src.device)
+
+        trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
@@ -77,15 +80,20 @@ class ASLModel(nn.Module):
     def greedy_decode(
         self,
         src: Tensor,
+        src_lengths: Optional[Tensor] = None, 
         max_len: int = 30,
     ):
         self.eval()
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
+    
+        src_mask = None
+        if src_lengths:
+            src_mask = generate_video_padding_mask(src_lengths).to(src.device)
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model))
+        memory = self.encoder(self.src_embedding(src, src_mask) * math.sqrt(self.d_model))
 
         # Get the gloss sequence
         encoded = self.ff_1(memory)
@@ -113,9 +121,9 @@ class ASLModel(nn.Module):
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
-            out = self.decoder(out, memory, trg_mask)
+            out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
-
+            
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 
