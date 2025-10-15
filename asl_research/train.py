@@ -168,15 +168,16 @@ class Trainer:
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
 
-        for videos, glosses, gloss_lengths, sentences, _ in dl:
+        for videos, video_lengths, glosses, gloss_lengths, sentences, _ in dl:
             videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
 
             self.optimizer.zero_grad()
 
-            encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
+            encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
@@ -223,8 +224,9 @@ class Trainer:
 
         dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"Validating")
 
-        for videos, glosses, gloss_lengths, sentences, sentence_lengths in dl:
+        for videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
             videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
@@ -232,7 +234,7 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
-                    videos, max_len=torch.max(sentence_lengths).item()
+                    videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
 
             # # Convert output tensors into strings
@@ -254,7 +256,7 @@ class Trainer:
             predicted_sentences.extend(predicted_sentence)
 
             with torch.no_grad():
-                encoder_out, decoder_out = self.model(videos, sentences[:, :-1])
+                encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
@@ -361,8 +363,7 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
-        max_start_frame=training_config["max_start_frame"],
-        min_end_frame=training_config["min_end_frame"],
+        sampling_ratio=training_config["sampling_ratio"],
         random_sampling=training_config["random_sampling"],
         is_train=True,
     )
@@ -371,6 +372,7 @@ def create_dataloaders(path: str, training_config: dict):
         df=valid,
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
+        sampling_ratio=training_config["sampling_ratio"],
         num_frames=training_config["num_frames"],
         is_train=False,
     )
@@ -379,6 +381,7 @@ def create_dataloaders(path: str, training_config: dict):
         df=test,
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
+        sampling_ratio=training_config["sampling_ratio"],
         num_frames=training_config["num_frames"],
         is_train=False,
     )
@@ -388,7 +391,7 @@ def create_dataloaders(path: str, training_config: dict):
         train_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_zero_padding,
         pin_memory=True,
         sampler=DistributedSampler(train_set),
     )
@@ -396,7 +399,7 @@ def create_dataloaders(path: str, training_config: dict):
         valid_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_zero_padding,
         pin_memory=True,
         sampler=DistributedSampler(valid_set),
     )
@@ -404,7 +407,7 @@ def create_dataloaders(path: str, training_config: dict):
         test_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_zero_padding,
         pin_memory=True,
         sampler=DistributedSampler(test_set),
     )

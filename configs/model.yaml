@@ -37,8 +37,7 @@ training:
 
   # Dataset
   num_frames: 30
-  max_start_frame: 10
-  min_end_frame: 10
+  sampling_ratio: 2
   random_sampling: False
 
 
