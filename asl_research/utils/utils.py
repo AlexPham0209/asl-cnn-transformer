@@ -189,3 +189,18 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
     ]
     return sequence
 
+
+if __name__ == "__main__":
+    n_features = 12
+    
+    a = torch.arange(1, 3 * n_features + 1).reshape(3, n_features)
+    b = torch.arange(1, 6 * n_features + 1).reshape(6, n_features)
+    c = torch.arange(1, 3 * n_features + 1).reshape(3, n_features)
+
+    test = torch.zeros(3, max([a.shape[0], b.shape[0], c.shape[0]]), n_features)
+    test[0, :a.shape[0]] = a
+    test[1, :b.shape[0]] = b
+    test[2, :c.shape[0]] = c
+    print(test.shape)
+    print((test != torch.zeros(n_features))[..., 0].unsqueeze(1).unsqueeze(2))
+    print(generate_video_padding_mask(torch.tensor([a.shape[0], b.shape[0], c.shape[0]])))

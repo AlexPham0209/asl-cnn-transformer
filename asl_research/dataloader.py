@@ -155,7 +155,7 @@ class PhoenixDataset(Dataset):
         frame_positions = torch.arange(
             start=start, end=len(frame_files) - 1, step=self.sampling_ratio
         )
-
+        
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])
 
@@ -257,5 +257,6 @@ class PhoenixDataset(Dataset):
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-
+        
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+        

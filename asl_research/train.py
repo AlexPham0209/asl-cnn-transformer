@@ -84,6 +84,7 @@ class Trainer:
         self.file_name = training_config["file_name"]
         self.diagram_path = training_config["diagram_path"]
         self.save_every = training_config["save_every"]
+        self.validate_every = training_config["validate_every"]
 
         # Set up loss weights
         self.recognition_weight = training_config["recognition_weight"]
@@ -101,7 +102,7 @@ class Trainer:
 
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss().to(gpu_id)
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(gpu_id)
 
     def train(self):
         (
@@ -178,12 +179,10 @@ class Trainer:
             self.optimizer.zero_grad()
 
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
 
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
@@ -262,9 +261,7 @@ class Trainer:
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
 
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
