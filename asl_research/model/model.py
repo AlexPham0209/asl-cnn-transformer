@@ -60,7 +60,7 @@ class ASLModel(nn.Module):
         src_mask = None
         if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
-
+        
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
         src = self.src_embedding(src) * math.sqrt(self.d_model)
