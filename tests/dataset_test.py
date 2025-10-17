@@ -49,7 +49,7 @@ def test_dataset_split():
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     df = pd.read_csv(os.path.join("data", "processed", "phoenixweather2014t", "dataset.csv"))
-    dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=True)
+    dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=False)
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=PhoenixDataset.collate_fn_zero_padding)
     
     for i in range(10):

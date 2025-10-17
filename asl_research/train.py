@@ -183,7 +183,7 @@ class Trainer:
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -390,7 +390,7 @@ def create_dataloaders(path: str, training_config: dict):
         train_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn_zero_padding,
+        collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(train_set),
     )
@@ -398,7 +398,7 @@ def create_dataloaders(path: str, training_config: dict):
         valid_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn_zero_padding,
+        collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(valid_set),
     )
@@ -406,7 +406,7 @@ def create_dataloaders(path: str, training_config: dict):
         test_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn_zero_padding,
+        collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(test_set),
     )

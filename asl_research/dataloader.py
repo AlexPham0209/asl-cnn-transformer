@@ -188,9 +188,31 @@ class PhoenixDataset(Dataset):
         frame_positions, _ = torch.randint(low=start, high=end, size=(steps,), dtype=int).sort()
 
         return frame_positions
-
+    
     @staticmethod
     def collate_fn(batch: list):
+        videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
+        gloss_pad_token = gloss_pad_token[0]
+        word_pad_token = word_pad_token[0]
+
+        # Padding videos with 0
+        video_lengths = torch.tensor([video.shape[0] for video in videos])
+        videos = pad_sequence(videos, batch_first=True, padding_value=0)
+
+        # Padding gloss sequences
+        gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
+        gloss_sequences = pad_sequence(
+            gloss_sequences, batch_first=True, padding_value=gloss_pad_token
+        )
+        
+        # Padding sentences
+        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
+        sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
+        
+        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+
+    @staticmethod
+    def collate_fn_no_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
         gloss_pad_token = gloss_pad_token[0]
         word_pad_token = word_pad_token[0]
@@ -238,25 +260,5 @@ class PhoenixDataset(Dataset):
 
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
 
-    @staticmethod
-    def collate_fn_zero_padding(batch: list):
-        videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
-        gloss_pad_token = gloss_pad_token[0]
-        word_pad_token = word_pad_token[0]
-
-        # Padding videos with 0
-        video_lengths = torch.tensor([video.shape[0] for video in videos])
-        videos = pad_sequence(videos, batch_first=True, padding_value=0)
-
-        # Padding gloss sequences
-        gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
-        gloss_sequences = pad_sequence(
-            gloss_sequences, batch_first=True, padding_value=gloss_pad_token
-        )
-
-        # Padding sentences
-        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
-        sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-        
-        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+    
         
