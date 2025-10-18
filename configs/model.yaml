@@ -5,13 +5,13 @@ model:
 
   d_model: 256
   num_heads: 8
-  dropout: 0.3
+  dropout: 0.1
 
 training:
   # Basic hyperparameters
-  epochs: 600
-  batch_size: 8
-  lr: 1e-4
+  epochs: 200
+  batch_size: 4
+  lr: 1e-3
   save_every: 5
   validate_every: 3
     
@@ -40,7 +40,7 @@ training:
   num_frames: 30
   sampling_ratio: 2
   random_sampling: False
-
+  
 
 testing:
   load_path: 'models/best.pt'

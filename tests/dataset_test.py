@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 
 from asl_research.utils.utils import decode_glosses, decode_sentences
-
+from torchvision.io import write_video
 
 def test_dataset():
     dataset = PhoenixDataset(root_dir="data\\processed\\phoenixweather2014t")
@@ -50,14 +50,15 @@ if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     df = pd.read_csv(os.path.join("data", "processed", "phoenixweather2014t", "dataset.csv"))
     dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=False)
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=PhoenixDataset.collate_fn_zero_padding)
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
     
     for i in range(10):
         videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths = next(iter(dataloader))
         print(videos.shape)
         print(video_lengths)
-        plt.imshow(videos[0][0].permute(1, 2, 0))
+        plt.imshow(videos[0, video_lengths[0]].permute(1, 2, 0))
         print(decode_glosses(gloss_sequences.tolist(), dataset.gloss_to_idx, dataset.idx_to_gloss))
         print(gloss_lengths)
         print(decode_sentences(sentences.tolist(), dataset.word_to_idx, dataset.idx_to_word))
+        write_video("video.mp4", videos[0].permute(0, 2, 3, 1), fps=24)
         plt.show()

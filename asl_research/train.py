@@ -153,7 +153,7 @@ class Trainer:
                 print(f"Valid Average Loss: {valid_loss:>8f}", end=" - ")
                 print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
                 print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
-
+            
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             # if self.early_stopping.early_stop(valid_loss):
@@ -175,9 +175,9 @@ class Trainer:
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
-
+            
             self.optimizer.zero_grad()
-
+            
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
             
             # Encoder loss

@@ -2,6 +2,7 @@ from typing import Optional
 
 import torch
 from torch import Tensor
+from torch.nn.utils.rnn import pad_sequence 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -202,5 +203,8 @@ if __name__ == "__main__":
     test[1, :b.shape[0]] = b
     test[2, :c.shape[0]] = c
     print(test.shape)
-    print((test != torch.zeros(n_features))[..., 0].unsqueeze(1).unsqueeze(2))
-    print(generate_video_padding_mask(torch.tensor([a.shape[0], b.shape[0], c.shape[0]])))
+    a = (test != torch.zeros(n_features))[..., 0].unsqueeze(1).unsqueeze(2)
+    b = generate_video_padding_mask(torch.tensor([a.shape[0], b.shape[0], c.shape[0]]))
+    print(torch.equal(a, b))
+
+    print(pad_sequence([torch.tensor([1, 2]), torch.tensor([1, 2, 3, 4]), torch.tensor([1, 3])], batch_first=True))
