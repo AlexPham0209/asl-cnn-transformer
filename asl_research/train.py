@@ -117,7 +117,7 @@ class Trainer:
             print(f"Starting Average Loss: {valid_loss:>8f}", end=" - ")
             print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
             print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
-
+        
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)

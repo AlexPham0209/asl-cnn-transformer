@@ -85,19 +85,19 @@ class PhoenixDataset(Dataset):
         # Data augmentation settings
         self.train_transform = Compose(
             [
-                Lambda(self.normalize_color),
-                Normalize(mean, std),
                 Resize((256, 256)),
                 RandomCrop(target_size),
+                Lambda(self.normalize_color),
+                Normalize(mean, std),
             ]
         )
 
         self.valid_transform = Compose(
             [
-                Lambda(self.normalize_color),
-                Normalize(mean, std),
                 Resize((256, 256)),
                 CenterCrop(target_size),
+                Lambda(self.normalize_color),
+                Normalize(mean, std),
             ]
         )
 

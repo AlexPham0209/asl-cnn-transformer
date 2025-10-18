@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights
+from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights, efficientnet_b4, EfficientNet_B4_Weights
 
 
 class Conv3DBlock(nn.Module):
@@ -148,6 +148,8 @@ class SpatialEmbedding(nn.Module):
         match pretrained_model:
             case "efficientnet_b0":
                 self.conv = efficientnet_b0(weights=EfficientNet_B0_Weights.IMAGENET1K_V1)
+            case "efficientnet_b4":
+                self.conv = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
             case "resnet50":
                 self.conv = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
 
@@ -157,6 +159,10 @@ class SpatialEmbedding(nn.Module):
         # Replacing final classification layer with our own depending on what model we choose
         match pretrained_model:
             case "efficientnet_b0":
+                self.conv.classifier[1] = nn.Linear(
+                    self.conv.classifier[1].in_features, hidden_size
+                )
+            case "efficientnet_b4":
                 self.conv.classifier[1] = nn.Linear(
                     self.conv.classifier[1].in_features, hidden_size
                 )

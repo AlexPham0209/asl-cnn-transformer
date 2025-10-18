@@ -8,7 +8,7 @@ from asl_research.dataloader import PhoenixDataset
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 
-from asl_research.utils.utils import decode_glosses, decode_sentences
+from asl_research.utils.utils import decode_glosses, decode_sentences, generate_video_padding_mask
 from torchvision.io import write_video
 
 def test_dataset():
@@ -40,7 +40,7 @@ def test_dataset_split():
     train_dl = DataLoader(train_set, batch_size=16, shuffle=True)
     valid_dl = DataLoader(valid_set, batch_size=16, shuffle=True)
     test_dl = DataLoader(test_set, batch_size=16, shuffle=True)
-
+    
     assert len(train_set) == math.floor(0.8 * len(dataset))
     assert len(valid_set) == math.floor(0.1 * len(dataset))
     assert len(test_set) == math.floor(0.1 * len(dataset))
@@ -54,9 +54,9 @@ if __name__ == "__main__":
     
     for i in range(10):
         videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths = next(iter(dataloader))
-        print(videos.shape)
+        print(torch.equal((videos[:, :, 0, 0, 0] != 0.0).unsqueeze(1).unsqueeze(2), generate_video_padding_mask(video_lengths)))
         print(video_lengths)
-        plt.imshow(videos[0, video_lengths[0]].permute(1, 2, 0))
+        plt.imshow(videos[0, video_lengths[0] - 1].permute(1, 2, 0))
         print(decode_glosses(gloss_sequences.tolist(), dataset.gloss_to_idx, dataset.idx_to_gloss))
         print(gloss_lengths)
         print(decode_sentences(sentences.tolist(), dataset.word_to_idx, dataset.idx_to_word))
