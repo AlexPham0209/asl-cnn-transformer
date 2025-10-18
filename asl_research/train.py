@@ -445,7 +445,7 @@ def start_training(rank: int, world_size: int, config: dict):
     )
 
     # Creating optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
+    optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"], weight_decay=training_config["weight_decay"]))
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
