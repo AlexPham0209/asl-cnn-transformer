@@ -102,7 +102,7 @@ class Trainer:
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
         self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(gpu_id)
-
+        
     def train(self):
         (
             valid_recognition_loss,
@@ -132,7 +132,7 @@ class Trainer:
             # Saving model
             self._save_best(epoch, valid_loss)
             self._save_checkpoint(epoch)
-
+            
             # Only print out diagnostic messages
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
@@ -231,7 +231,7 @@ class Trainer:
 
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
-
+            
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
@@ -257,7 +257,7 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
@@ -355,14 +355,14 @@ def create_dataloaders(path: str, training_config: dict):
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
     train, test = train_test_split(df, test_size=0.2, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
-
+    
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
         target_size=(224, 224),
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
-        random_sampling=training_config["random_sampling"],
+        random_subsampling=training_config["random_sampling"],
         is_train=True,
     )
 
@@ -372,6 +372,7 @@ def create_dataloaders(path: str, training_config: dict):
         target_size=(224, 224),
         sampling_ratio=training_config["sampling_ratio"],
         num_frames=training_config["num_frames"],
+        random_subsampling=training_config["random_sampling"],
         is_train=False,
     )
 
@@ -381,6 +382,7 @@ def create_dataloaders(path: str, training_config: dict):
         target_size=(224, 224),
         sampling_ratio=training_config["sampling_ratio"],
         num_frames=training_config["num_frames"],
+        random_subsampling=training_config["random_sampling"],
         is_train=False,
     )
 

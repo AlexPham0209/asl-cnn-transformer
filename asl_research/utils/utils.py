@@ -98,7 +98,7 @@ def generate_video_padding_mask(
     max_length = torch.max(lengths, dim=-1)[0].item() if not max_length else max_length
 
     lengths = lengths.unsqueeze(1)
-    indices = torch.arange(0, max_length).unsqueeze(0)
+    indices = torch.arange(0, max_length).unsqueeze(0).to(lengths.device)
 
     out = indices <= lengths - 1
     return out.unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
