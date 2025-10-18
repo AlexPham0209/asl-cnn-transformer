@@ -221,7 +221,7 @@ class PhoenixDataset(Dataset):
         video_lengths = torch.tensor([video.shape[0] for video in videos])
         max_video_length = video_lengths.max().item()
         videos = torch.stack(videos, dim=0)
-
+        
         # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(
