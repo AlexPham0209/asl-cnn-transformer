@@ -165,7 +165,7 @@ class PhoenixDataset(Dataset):
             frames.append(read_file(frame))
 
         return torch.stack(decode_jpeg(frames), dim=0)
-
+    
     def uniform_frame_subsampling(self, frames):
         start = random.randint(0, self.max_start_frame)
         end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
