@@ -14,6 +14,7 @@ from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
+from torch.nn.functional import log_softmax, softmax
 
 from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
 import pandas as pd
@@ -38,11 +39,12 @@ print(test.head(n=5))
 
 # Creating dataset and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    df=test,
+    df=train,
     root_dir=PROCESSED_PATH,
     num_frames=training_config["num_frames"],
     target_size=(224, 224),
     is_train=False,
+    random_subsampling=2,
 )
 
 gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
@@ -61,7 +63,7 @@ model = ASLModel(
 
 dataloader = DataLoader(
     dataset,
-    batch_size=1,
+    batch_size=2,
     num_workers=0,
     shuffle=True,
     collate_fn=PhoenixDataset.collate_fn,
@@ -89,22 +91,26 @@ remove_special_tokens = (
 )
 
 for i in range(50):
-    videos, glosses, gloss_lengths, sentences, _ = next(iter(dataloader))
+    videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(iter(dataloader))
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
     gloss_lengths = gloss_lengths.to(DEVICE)
     sentences = sentences.to(DEVICE)
-
-    encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
-
-    actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
-    predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+    video_lengths = video_lengths.to(DEVICE)
+    
+    encoder_out, decoder_out = model(videos, sentences, video_lengths)
+    print(decoder_out.shape)
+    decoder_out = torch.argmax(softmax(decoder_out, dim=-1), dim=-1)
+    
+    
+    # actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+    # predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 
     actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
     predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
-
+    
     print(f"Actual Sentence: {actual_sentence[0]}")
     print(f"Predicted Sentence: {predicted_sentence[0]}")
-    print(f"Actual Gloss: {actual_gloss[0]}")
-    print(f"Predicted Gloss: {predicted_gloss[0]}")
+    # print(f"Actual Gloss: {actual_gloss[0]}")
+    # print(f"Predicted Gloss: {predicted_gloss[0]}")
     print()

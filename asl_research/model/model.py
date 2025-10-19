@@ -60,6 +60,8 @@ class ASLModel(nn.Module):
         src_mask = None
         if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
+            print(src_lengths)
+            print(src_mask)
         
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
@@ -123,7 +125,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
-
+            
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
         
