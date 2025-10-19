@@ -170,7 +170,6 @@ class SpatialEmbedding(nn.Module):
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         
         self.ff = nn.Linear(hidden_size, d_model)
-        self.relu = nn.ReLU()
 
     def forward(self, x: Tensor):
         """
@@ -186,11 +185,10 @@ class SpatialEmbedding(nn.Module):
         # Allows for the CNN to be applied to every temporal slice
         N, T, C, H, W = x.shape
         x = x.reshape(N * T, C, H, W)
-
+        
         # Using pretrained weights
         x = self.conv(x).to(x.device)
         x = self.ff(x)
-        x = self.relu(x)
-
+        
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)

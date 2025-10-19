@@ -55,25 +55,24 @@ class ASLModel(nn.Module):
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
-
+        
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src_mask = None
         if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
-            print(src_lengths)
-            print(src_mask)
         
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
+        videos = src
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-
+        
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
         
         src = self.ff_1(src)
         trg = self.ff_2(trg)
-
+        
         # Should output the encoder output
         # src: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # trg: (batch_size, video_length, word_vocab_size)

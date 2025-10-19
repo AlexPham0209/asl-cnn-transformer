@@ -32,10 +32,10 @@ model_config = config["model"]
 training_config = config["training"]
 
 df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
-train, test = train_test_split(df, test_size=0.2, random_state=training_config["seed"])
+train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
 test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
 
-print(test.head(n=5))
+print(train.head(n=5))
 
 # Creating dataset and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
@@ -90,7 +90,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(50):
+for i in range(5):
     videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(iter(dataloader))
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
@@ -98,19 +98,16 @@ for i in range(50):
     sentences = sentences.to(DEVICE)
     video_lengths = video_lengths.to(DEVICE)
     
-    encoder_out, decoder_out = model(videos, sentences, video_lengths)
-    print(decoder_out.shape)
-    decoder_out = torch.argmax(softmax(decoder_out, dim=-1), dim=-1)
+    encoder_out, decoder_out = model.greedy_decode(videos, video_lengths, max_len=30)
     
-    
-    # actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
-    # predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+    actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+    predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 
     actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
     predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
     
     print(f"Actual Sentence: {actual_sentence[0]}")
     print(f"Predicted Sentence: {predicted_sentence[0]}")
-    # print(f"Actual Gloss: {actual_gloss[0]}")
-    # print(f"Predicted Gloss: {predicted_gloss[0]}")
+    print(f"Actual Gloss: {actual_gloss[0]}")
+    print(f"Predicted Gloss: {predicted_gloss[0]}")
     print()

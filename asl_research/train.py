@@ -128,7 +128,7 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate(epoch)
-
+            
             # Saving model
             self._save_best(epoch, valid_loss)
             self._save_checkpoint(epoch)
@@ -176,7 +176,6 @@ class Trainer:
             sentences = sentences.to(self.gpu_id)
             
             self.optimizer.zero_grad()
-            
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
 
             # Encoder loss
@@ -237,7 +236,7 @@ class Trainer:
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
             
-            # # Convert output tensors into strings
+            # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
 
@@ -247,7 +246,7 @@ class Trainer:
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-
+            
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
@@ -261,7 +260,7 @@ class Trainer:
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -287,7 +286,7 @@ class Trainer:
     def _load_checkpoint(self):
         if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
             return
-
+        
         assert os.path.exists(self.load_path), "Load path doesn't exist"
         print("Loading checkpoint...")
         checkpoint = torch.load(self.load_path, weights_only=False)
@@ -353,8 +352,10 @@ class Trainer:
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
-    train, test = train_test_split(df, test_size=0.2, random_state=training_config["seed"])
+    train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
+
+    print(train.head(n=10))
     
     train_set = PhoenixDataset(
         df=train,
@@ -363,7 +364,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
-        is_train=True,
+        is_train=False
     )
 
     valid_set = PhoenixDataset(
@@ -455,7 +456,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=valid_dl,
+        valid_dl=train_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,

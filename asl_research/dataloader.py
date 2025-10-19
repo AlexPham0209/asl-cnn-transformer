@@ -114,7 +114,7 @@ class PhoenixDataset(Dataset):
         processed_path = os.path.join(self.processed_video_dir, item["processed_paths"])
         glosses = item["glosses"]
         sentence = item["texts"]
-
+        
         # Convert strings into token sequences
         gloss_tokens = torch.tensor([self.gloss_to_idx[gloss] for gloss in glosses.split()])
         word_tokens = torch.tensor(
