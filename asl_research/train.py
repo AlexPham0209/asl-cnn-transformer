@@ -278,7 +278,7 @@ class Trainer:
                 + self.translation_weight * translation_loss
             )
             losses += loss.item()
-
+        
         print(f"Predicted Glosses: {predicted_glosses}")
         print(f"Actual Glosses: {actual_glosses}\n")
         print(f"Predicted Sentences: {predicted_sentences}")
@@ -363,7 +363,7 @@ def create_dataloaders(path: str, training_config: dict):
     train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
     
-    train = train.head(n=2)
+    train = train.head(n=9)
     
     train_set = PhoenixDataset(
         df=train,
@@ -398,7 +398,7 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=2,
+        batch_size=3,
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,

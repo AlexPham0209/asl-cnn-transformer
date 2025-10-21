@@ -55,12 +55,13 @@ class ASLModel(nn.Module):
             num_layers=num_decoders, d_model=d_model, num_heads=num_heads, dropout=dropout
         )
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
+        self._init_weights()
         
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src_mask = None
         if src_lengths is not None:
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
-        
+            
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
         videos = src
@@ -78,6 +79,11 @@ class ASLModel(nn.Module):
         # trg: (batch_size, video_length, word_vocab_size)
         return src, trg
 
+    def _init_weights(self):
+        for p in self.parameters():
+            if p.dim() > 1 and p.requires_grad:
+                nn.init.xavier_uniform_(p)
+    
     def greedy_decode(
         self,
         src: Tensor,
