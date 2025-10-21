@@ -137,7 +137,7 @@ class SpatialEmbedding(nn.Module):
     def __init__(
         self,
         d_model: int = 512,
-        hidden_size: int = 256,
+        hidden_size: int = 512,
         dropout: float = 0.1,
         pretrained_model: str = "efficientnet_b0",
     ):
@@ -170,6 +170,7 @@ class SpatialEmbedding(nn.Module):
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         
         self.ff = nn.Linear(hidden_size, d_model)
+        self.relu = nn.ReLU()
 
     def forward(self, x: Tensor):
         """
@@ -188,6 +189,7 @@ class SpatialEmbedding(nn.Module):
         
         # Using pretrained weights
         x = self.conv(x).to(x.device)
+        x = self.relu(x)
         x = self.ff(x)
         
         # Reshaping the output of the Resnet

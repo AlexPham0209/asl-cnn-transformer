@@ -31,7 +31,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
 PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
-
+torch.autograd.set_detect_anomaly(True)
 
 def ddp_setup(rank, world_size):
     """
@@ -180,7 +180,9 @@ class Trainer:
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+            T, N, C = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
@@ -259,7 +261,9 @@ class Trainer:
             
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+            T, N, C = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
@@ -275,6 +279,10 @@ class Trainer:
             )
             losses += loss.item()
 
+        print(f"Predicted Glosses: {predicted_glosses}")
+        print(f"Actual Glosses: {actual_glosses}\n")
+        print(f"Predicted Sentences: {predicted_sentences}")
+        print(f"Actual Sentences: {actual_sentences}")
         return (
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
@@ -354,8 +362,8 @@ def create_dataloaders(path: str, training_config: dict):
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
     train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
-
-    print(train.head(n=10))
+    
+    train = train.head(n=2)
     
     train_set = PhoenixDataset(
         df=train,
@@ -390,7 +398,7 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=training_config["batch_size"],
+        batch_size=2,
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
@@ -451,7 +459,7 @@ def start_training(rank: int, world_size: int, config: dict):
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )
-
+    
     trainer = Trainer(
         model=model,
         vocab=vocab,
@@ -467,7 +475,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer.train()
     destroy_process_group()
-
+    
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
@@ -477,7 +485,7 @@ def main():
     print(f"GPU count: {world_size}")
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
-    mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
+    mp.spawn(start_training, args=(1, config), nprocs=1)
 
 
 if __name__ == "__main__":
