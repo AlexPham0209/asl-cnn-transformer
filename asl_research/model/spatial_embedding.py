@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights, efficientnet_b4, EfficientNet_B4_Weights
 from torch.nn.utils.rnn import pad_sequence
 
+
 from asl_research.utils.utils import generate_video_padding_mask
 
 class Conv3DBlock(nn.Module):
@@ -139,7 +140,7 @@ class Conv1DBlock(nn.Module):
 class MaskedBatchNorm(nn.Module):
     def __init__(self, num_features: int):
         super(MaskedBatchNorm, self).__init__()
-        self.bn = nn.BatchNorm1d(num_features, affine=False)
+        self.bn = nn.BatchNorm1d(num_features)
 
     def forward(self, x: Tensor, mask: Tensor = None):
         """x is the input tensor of shape [batch_size, n_channels, time_length]

@@ -183,7 +183,7 @@ class Trainer:
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
@@ -263,21 +263,17 @@ class Trainer:
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * recognition_loss
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
-            translation_loss = self.cross_entropy_loss(actual, expected)
+            translation_loss = self.cross_entropy_loss(actual, expected) * translation_loss
 
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
-            loss = (
-                self.recognition_weight * recognition_loss
-                + self.translation_weight * translation_loss
-            )
+            loss = recognition_loss + translation_loss
             losses += loss.item()
         
         print(f"Predicted Glosses: {predicted_glosses}")
