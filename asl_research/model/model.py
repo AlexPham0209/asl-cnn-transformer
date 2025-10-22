@@ -64,7 +64,6 @@ class ASLModel(nn.Module):
             
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
-        videos = src
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
         

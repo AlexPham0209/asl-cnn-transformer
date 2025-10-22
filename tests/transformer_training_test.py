@@ -12,7 +12,7 @@ from torch.nn.modules.loss import _Loss
 from torch.nn.utils.rnn import pad_sequence
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import generate_padding_mask
+from asl_research.utils.utils import generate_padding_mask, generate_video_padding_mask
 
 # Train on the GPU if possible
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,19 +25,23 @@ def train_epoch(
     optimizer: Optimizer,
     criterion: _Loss,
     epoch: int,
+    pad_token: int,
 ):
     # Set model to training mode
     model.train()
     losses = 0
 
     # Go through batches in the epoch
-    for src, trg in tqdm(data, desc=f"Epoch {epoch}"):
+    for src, src_lengths, trg in tqdm(data, desc=f"Epoch {epoch}"):
         # Convert source and target inputs into its respective device's tensors (CPU or GPU)
         src = src.to(DEVICE)
         trg = trg.to(DEVICE)
+        src_lengths = src_lengths.to(DEVICE)
 
         # Excluding the last element because the last element does not have any tokens to predict
         trg_input = trg[:, :-1]
+        src_mask = generate_padding_mask(src, pad_token)
+        src_mask_2 = generate_video_padding_mask(src_lengths)
 
         # Feed the inputs through the translation model
         # We are using teacher forcing, a strategy feeds the ground truth or the expected target sequence into the model
@@ -45,8 +49,9 @@ def train_epoch(
         out = model(
             src,
             trg_input,
+            src_mask_2
         )
-
+        
         actual = out.reshape(-1, out.shape[-1])
         expected = trg[:, 1:].reshape(-1)
         
@@ -99,8 +104,10 @@ def collate_fn(batch):
     x, y = zip(*batch)
     x = [torch.tensor(val) for val in x]
     y = [torch.tensor(val) for val in y]
+    
+    lengths = torch.tensor([val.shape[0] for val in x])
 
-    return pad_sequence(x, batch_first=True, padding_value=2), pad_sequence(
+    return pad_sequence(x, batch_first=True, padding_value=2), lengths, pad_sequence(
         y, batch_first=True, padding_value=2
     )
 
@@ -146,7 +153,7 @@ def test_transformer_training():
     
     # Training model
     for epoch in range(EPOCHS + 1):
-        loss = train_epoch(transformer, data, optimizer, criterion, epoch)
+        loss = train_epoch(transformer, data, optimizer, criterion, epoch, word_to_idx["<pad>"])
         print(f'Total Loss: {loss}\n')
     
     encoded = []

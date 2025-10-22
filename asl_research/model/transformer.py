@@ -42,13 +42,12 @@ class BaseTransformer(nn.Module):
         self.ff = nn.Linear(d_model, trg_vocab_size)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, src: Tensor, trg: Tensor):
-        src_mask: Tensor = generate_padding_mask(src, self.pad_token).to(src.device)
+    def forward(self, src: Tensor, trg: Tensor, src_mask: Tensor):
         trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token).to(trg.device)
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-
+        
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
 

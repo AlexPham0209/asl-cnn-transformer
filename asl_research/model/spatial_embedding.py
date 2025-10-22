@@ -133,6 +133,33 @@ class Conv1DBlock(nn.Module):
         return self.pooling(x)
 
 
+
+class MaskedBatchNorm(nn.Module):
+    def __init__(self, num_features: int):
+        super(MaskedBatchNorm, self).__init__()
+        self.bn = nn.BatchNorm1d(num_features)
+
+    def forward(self, x: Tensor, mask: Tensor=None):
+        """x is the input tensor of shape [batch_size, n_channels, time_length]
+            mask is of shape [batch_size, 1, time_length]
+            bn is a BatchNorm1d object
+        """
+        if mask.dim() >= 4:
+            mask = mask.squeeze(dim=1)
+
+        if mask is None:
+            x = self.bn(x.permute(0, 2, 1))
+            return x.permute(0, 2, 1)
+
+        N, T, features = x.shape
+        reshaped = x.reshape(-1, features, 1)
+        reshaped_mask = mask.reshape(-1, 1, 1) > 0
+        selected = torch.masked_select(reshaped, reshaped_mask).reshape(-1, features, 1)
+        batchnormed = self.bn(selected)
+        scattered = reshaped.masked_scatter(reshaped_mask, batchnormed)
+        backshaped = scattered.reshape(-1, T, features)
+        return backshaped
+
 class SpatialEmbedding(nn.Module):
     def __init__(
         self,
@@ -171,8 +198,9 @@ class SpatialEmbedding(nn.Module):
         
         self.ff = nn.Linear(hidden_size, d_model)
         self.relu = nn.ReLU()
+        self.bn = MaskedBatchNorm(num_features=d_model)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, mask: Tensor):
         """
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
 
@@ -189,8 +217,11 @@ class SpatialEmbedding(nn.Module):
         
         # Using pretrained weights
         x = self.conv(x).to(x.device)
+        x = self.bn(x, mask)
         x = self.relu(x)
         x = self.ff(x)
         
         # Reshaping the output of the Resnet
         return x.reshape(N, T, -1)
+
+a = [5, 3, 1]
