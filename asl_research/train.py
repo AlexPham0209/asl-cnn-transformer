@@ -183,20 +183,17 @@ class Trainer:
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * self.recognition_weight
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
-            translation_loss = self.cross_entropy_loss(actual, expected)
+            translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
             
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
-            loss = (
-                self.recognition_weight * recognition_loss
-                + self.translation_weight * translation_loss
-            )
+            loss = recognition_loss + translation_loss
             losses += loss.item()
 
             loss.backward()
@@ -263,12 +260,12 @@ class Trainer:
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * recognition_loss
+            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * self.recognition_weight
             
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
-            translation_loss = self.cross_entropy_loss(actual, expected) * translation_loss
+            translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
@@ -360,7 +357,7 @@ def create_dataloaders(path: str, training_config: dict):
     train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
     
-    train = train.head(n=9)
+    train = train.head(n=18)
     
     train_set = PhoenixDataset(
         df=train,
@@ -395,7 +392,7 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=3,
+        batch_size=6,
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
