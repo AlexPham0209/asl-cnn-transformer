@@ -2,7 +2,9 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights, efficientnet_b4, EfficientNet_B4_Weights
+from torch.nn.utils.rnn import pad_sequence
 
+from asl_research.utils.utils import generate_video_padding_mask
 
 class Conv3DBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3, 3)):
@@ -137,9 +139,9 @@ class Conv1DBlock(nn.Module):
 class MaskedBatchNorm(nn.Module):
     def __init__(self, num_features: int):
         super(MaskedBatchNorm, self).__init__()
-        self.bn = nn.BatchNorm1d(num_features)
+        self.bn = nn.BatchNorm1d(num_features, affine=False)
 
-    def forward(self, x: Tensor, mask: Tensor=None):
+    def forward(self, x: Tensor, mask: Tensor = None):
         """x is the input tensor of shape [batch_size, n_channels, time_length]
             mask is of shape [batch_size, 1, time_length]
             bn is a BatchNorm1d object
@@ -197,10 +199,11 @@ class SpatialEmbedding(nn.Module):
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         
         self.ff = nn.Linear(hidden_size, d_model)
-        self.relu = nn.ReLU()
         self.bn = MaskedBatchNorm(num_features=d_model)
+        self.relu = nn.ReLU()
+        
 
-    def forward(self, x: Tensor, mask: Tensor):
+    def forward(self, x: Tensor, mask: Tensor = None):
         """
         Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
 
@@ -217,11 +220,10 @@ class SpatialEmbedding(nn.Module):
         
         # Using pretrained weights
         x = self.conv(x).to(x.device)
+        x = x.reshape(N, T, -1)
+        x = self.ff(x)
         x = self.bn(x, mask)
         x = self.relu(x)
-        x = self.ff(x)
         
         # Reshaping the output of the Resnet
-        return x.reshape(N, T, -1)
-
-a = [5, 3, 1]
+        return x

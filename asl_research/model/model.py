@@ -64,7 +64,7 @@ class ASLModel(nn.Module):
             
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
         
-        src = self.src_embedding(src) * math.sqrt(self.d_model)
+        src = self.src_embedding(src, src_mask.squeeze(dim=1)) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
         
         src = self.encoder(src, src_mask)
@@ -99,7 +99,7 @@ class ASLModel(nn.Module):
             src_mask = generate_video_padding_mask(src_lengths).to(src.device)
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(self.src_embedding(src) * math.sqrt(self.d_model), src_mask)
+        memory = self.encoder(self.src_embedding(src, src_mask.squeeze(dim=1)) * math.sqrt(self.d_model), src_mask)
         
         # Get the gloss sequence
         encoded = self.ff_1(memory)

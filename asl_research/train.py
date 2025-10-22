@@ -97,7 +97,8 @@ class Trainer:
         self._load_checkpoint()
 
         # Convert model into DistributedDataParallel model using GPU {gpu_id}
-        self.model = DistributedDataParallel(model, device_ids=[gpu_id])
+        self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+        self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
 
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
