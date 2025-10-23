@@ -1,11 +1,20 @@
+from typing import Optional
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights, efficientnet_b4, EfficientNet_B4_Weights
+from torchvision.models import (
+    resnet50,
+    ResNet50_Weights,
+    efficientnet_b0,
+    EfficientNet_B0_Weights,
+    efficientnet_b4,
+    EfficientNet_B4_Weights,
+)
 from torch.nn.utils.rnn import pad_sequence
 
 
 from asl_research.utils.utils import generate_video_padding_mask
+
 
 class Conv3DBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: tuple = (3, 3, 3)):
@@ -110,56 +119,65 @@ class Conv2DBlock(nn.Module):
 
 
 class Conv1DBlock(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        conv_kernel_size: int = 3,
-        pooling_kernel_size: int = 2,
-    ):
+    def __init__(self, channels: int):
         super(Conv1DBlock, self).__init__()
-        self.conv = nn.Conv1d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=conv_kernel_size,
-            bias=False,
-        )
-        self.batch_norm = nn.BatchNorm1d(num_features=out_channels)
+        self.conv = nn.Conv1d()
+        self.bn = MaskedBatchNorm(channels)
         self.relu = nn.ReLU()
-        self.pooling = nn.MaxPool1d(kernel_size=pooling_kernel_size)
 
-    def forward(self, x: Tensor):
+        self.new_length = (
+            lambda T: (
+                T
+                + 2 * self.conv.padding[0]
+                - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1)
+                - 1
+            )
+            // self.conv.stride[0]
+            + 1
+        )
+
+    def forward(self, x: Tensor, lengths: Optional[Tensor] = None):
+        x = x.permute(0, 2, 1)
         x = self.conv(x)
-        x = self.batch_norm(x)
+
+        mask = None
+        if lengths is not None and lengths.dim() == 1:
+            lengths = torch.tensor(list(map(self.new_length, lengths.tolist())))
+            mask = generate_video_padding_mask(lengths)
+            x = x * mask.squeeze(1)
+
+        x = x.permute(0, 2, 1)
+        x = self.bn(x, mask)
         x = self.relu(x)
 
-        return self.pooling(x)
-
+        return x
 
 
 class MaskedBatchNorm(nn.Module):
     def __init__(self, num_features: int):
         super(MaskedBatchNorm, self).__init__()
+        self.num_features = num_features
         self.bn = nn.BatchNorm1d(num_features)
 
     def forward(self, x: Tensor, mask: Tensor = None):
         """x is the input tensor of shape [batch_size, n_channels, time_length]
-            mask is of shape [batch_size, 1, time_length]
-            bn is a BatchNorm1d object
+        mask is of shape [batch_size, 1, time_length]
+        bn is a BatchNorm1d object
         """
-        
+
         if mask is None:
             x = self.bn(x.permute(0, 2, 1))
             return x.permute(0, 2, 1)
 
         N, T, features = x.shape
-        reshaped = x.reshape(-1, features, 1)
-        reshaped_mask = mask.reshape(-1, 1, 1) > 0
-        selected = torch.masked_select(reshaped, reshaped_mask).reshape(-1, features, 1)
+        reshaped = x.reshape(-1, features)
+        reshaped_mask = mask.reshape(-1, 1) > 0
+        selected = torch.masked_select(reshaped, reshaped_mask).reshape(-1, features)
         batchnormed = self.bn(selected)
         scattered = reshaped.masked_scatter(reshaped_mask, batchnormed)
         backshaped = scattered.reshape(-1, T, features)
         return backshaped
+
 
 class SpatialEmbedding(nn.Module):
     def __init__(
@@ -196,11 +214,10 @@ class SpatialEmbedding(nn.Module):
                 )
             case "resnet50":
                 self.conv.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-        
+
         self.ff = nn.Linear(hidden_size, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
         self.relu = nn.ReLU()
-        
 
     def forward(self, x: Tensor, mask: Tensor = None):
         """
@@ -216,13 +233,13 @@ class SpatialEmbedding(nn.Module):
         # Allows for the CNN to be applied to every temporal slice
         N, T, C, H, W = x.shape
         x = x.reshape(N * T, C, H, W)
-        
+
         # Using pretrained weights
         x = self.conv(x).to(x.device)
         x = x.reshape(N, T, -1)
         x = self.ff(x)
         x = self.bn(x, mask)
         x = self.relu(x)
-        
+
         # Reshaping the output of the Resnet
         return x

@@ -33,6 +33,7 @@ CONFIG_PATH = "configs"
 PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 torch.autograd.set_detect_anomaly(True)
 
+
 def ddp_setup(rank, world_size):
     """
     Args:
@@ -102,8 +103,10 @@ class Trainer:
 
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(gpu_id)
-        
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
+            gpu_id
+        )
+
     def train(self):
         (
             valid_recognition_loss,
@@ -118,7 +121,7 @@ class Trainer:
             print(f"Starting Average Loss: {valid_loss:>8f}", end=" - ")
             print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
             print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
-        
+
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
@@ -129,11 +132,11 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate(epoch)
-            
+
             # Saving model
             self._save_best(epoch, valid_loss)
             self._save_checkpoint(epoch)
-            
+
             # Only print out diagnostic messages
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
@@ -153,7 +156,7 @@ class Trainer:
                 print(f"Valid Average Loss: {valid_loss:>8f}", end=" - ")
                 print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
                 print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
-            
+
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             # if self.early_stopping.early_stop(valid_loss):
@@ -175,7 +178,7 @@ class Trainer:
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
-            
+
             self.optimizer.zero_grad()
             encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
 
@@ -183,13 +186,16 @@ class Trainer:
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * self.recognition_weight
-            
+            recognition_loss = (
+                self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+                * self.recognition_weight
+            )
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
-            
+
             # Calculating the joint loss
             recognition_losses += recognition_loss.item()
             translation_losses += translation_loss.item()
@@ -230,12 +236,12 @@ class Trainer:
 
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
-            
+
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
-            
+
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
@@ -246,7 +252,7 @@ class Trainer:
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-            
+
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
@@ -256,12 +262,15 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
-            
+
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
-            recognition_loss = self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths) * self.recognition_weight
-            
+            recognition_loss = (
+                self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+                * self.recognition_weight
+            )
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -272,7 +281,7 @@ class Trainer:
             translation_losses += translation_loss.item()
             loss = recognition_loss + translation_loss
             losses += loss.item()
-        
+
         print(f"Predicted Glosses: {predicted_glosses}")
         print(f"Actual Glosses: {actual_glosses}\n")
         print(f"Predicted Sentences: {predicted_sentences}")
@@ -288,7 +297,7 @@ class Trainer:
     def _load_checkpoint(self):
         if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
             return
-        
+
         assert os.path.exists(self.load_path), "Load path doesn't exist"
         print("Loading checkpoint...")
         checkpoint = torch.load(self.load_path, weights_only=False)
@@ -356,9 +365,9 @@ def create_dataloaders(path: str, training_config: dict):
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
     train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
-    
+
     train = train.head(n=18)
-    
+
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
@@ -366,7 +375,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
-        is_train=False
+        is_train=False,
     )
 
     valid_set = PhoenixDataset(
@@ -432,7 +441,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     assert "<pad>" in gloss_to_idx
     assert "<pad>" in word_to_idx
-        
+
     # Creating the model
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
@@ -448,12 +457,16 @@ def start_training(rank: int, world_size: int, config: dict):
     )
 
     # Creating optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]), weight_decay=float(training_config["weight_decay"]))
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(training_config["lr"]),
+        weight_decay=float(training_config["weight_decay"]),
+    )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )
-    
+
     trainer = Trainer(
         model=model,
         vocab=vocab,
@@ -469,7 +482,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer.train()
     destroy_process_group()
-    
+
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:

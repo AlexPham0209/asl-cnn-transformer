@@ -47,7 +47,7 @@ class BaseTransformer(nn.Module):
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
-        
+
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
 
