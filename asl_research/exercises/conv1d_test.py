@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from asl_research.model.spatial_embedding import Conv1DBlock, MaskedBatchNorm
-from asl_research.utils.utils import generate_video_padding_mask
+from asl_research.utils.utils import generate_padding_mask_from_lengths
 from torch.nn.utils.rnn import pad_sequence
 
 CHANNELS = 6
@@ -15,8 +15,11 @@ batch = pad_sequence([a, b, c], batch_first=True)
 conv = nn.Conv1d(CHANNELS, CHANNELS, kernel_size=3, stride=3)
 conv = Conv1DBlock(CHANNELS, 2)
 
-conv(batch, size)
+print(batch)
+print(conv(batch, size))
 conv(a.unsqueeze(0))
+conv(b.unsqueeze(0))
+conv(c.unsqueeze(0))
 
 # batch = batch.permute(0, 2, 1)
 # N, C, T = batch.shape

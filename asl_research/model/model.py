@@ -9,7 +9,7 @@ from torch.nn.functional import softmax, log_softmax
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.spatial_embedding import SpatialEmbedding
-from asl_research.utils.utils import generate_square_subsequent_mask, generate_video_padding_mask
+from asl_research.utils.utils import generate_square_subsequent_mask, generate_padding_mask_from_lengths
 
 
 class ASLModel(nn.Module):
@@ -60,7 +60,7 @@ class ASLModel(nn.Module):
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src_mask = None
         if src_lengths is not None:
-            src_mask = generate_video_padding_mask(src_lengths).to(src.device)
+            src_mask = generate_padding_mask_from_lengths(src_lengths).to(src.device)
 
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
@@ -96,7 +96,7 @@ class ASLModel(nn.Module):
 
         src_mask = None
         if src_lengths is not None:
-            src_mask = generate_video_padding_mask(src_lengths).to(src.device)
+            src_mask = generate_padding_mask_from_lengths(src_lengths).to(src.device)
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(
@@ -131,7 +131,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
-
+            
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

@@ -13,7 +13,7 @@ from torchvision.models import (
 from torch.nn.utils.rnn import pad_sequence
 
 
-from asl_research.utils.utils import generate_video_padding_mask
+from asl_research.utils.utils import generate_padding_mask_from_lengths
 
 
 class Conv3DBlock(nn.Module):
@@ -134,7 +134,7 @@ class Conv1DBlock(nn.Module):
         self.bn = MaskedBatchNorm(channels)
         self.relu = nn.ReLU()
 
-        self.new_length = (
+        self.calculate_new_lengths = (
             lambda T: (
                 T
                 + 2 * self.conv.padding[0]
@@ -148,16 +148,16 @@ class Conv1DBlock(nn.Module):
     def forward(self, x: Tensor, lengths: Optional[Tensor] = None):
         x = x.permute(0, 2, 1)
         x = self.conv(x)
-
+        
         mask = None
         if lengths is not None and lengths.dim() == 1:
-            lengths = torch.tensor(list(map(self.new_length, lengths.tolist())))
-            mask = generate_video_padding_mask(lengths)
+            lengths = self.calculate_new_lengths(lengths)
+            mask = generate_padding_mask_from_lengths(lengths)
             x = x * mask.squeeze(1)
-
+        
         x = x.permute(0, 2, 1)
         x = self.bn(x, mask)
-        x = self.relu(x)
+        # x = self.relu(x)
 
         return x, lengths
 

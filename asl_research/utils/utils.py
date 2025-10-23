@@ -80,7 +80,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
 
-def generate_video_padding_mask(
+def generate_padding_mask_from_lengths(
     lengths: Optional[Tensor] = None, max_length: Optional[int] = None
 ):
     """

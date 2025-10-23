@@ -12,7 +12,7 @@ from torch.nn.modules.loss import _Loss
 from torch.nn.utils.rnn import pad_sequence
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import generate_padding_mask, generate_video_padding_mask
+from asl_research.utils.utils import generate_padding_mask, generate_padding_mask_from_lengths
 
 # Train on the GPU if possible
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,7 +41,7 @@ def train_epoch(
         # Excluding the last element because the last element does not have any tokens to predict
         trg_input = trg[:, :-1]
         src_mask = generate_padding_mask(src, pad_token)
-        src_mask_2 = generate_video_padding_mask(src_lengths)
+        src_mask_2 = generate_padding_mask_from_lengths(src_lengths)
 
         # Feed the inputs through the translation model
         # We are using teacher forcing, a strategy feeds the ground truth or the expected target sequence into the model
