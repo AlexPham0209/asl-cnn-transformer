@@ -27,6 +27,10 @@ a = conv(a.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
 b = conv(b.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
 c = conv(c.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
 
+print(torch.allclose(batch[0, :a.shape[1]], a.squeeze(0)))
+print(torch.allclose(batch[1, :b.shape[1]], b.squeeze(0)))
+print(torch.allclose(batch[2, :c.shape[1]], c.squeeze(0)))
+
 print(batch)
 print(a)
 print(b)
