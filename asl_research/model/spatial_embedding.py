@@ -147,9 +147,7 @@ class MaskedBatchNorm(nn.Module):
             mask is of shape [batch_size, 1, time_length]
             bn is a BatchNorm1d object
         """
-        if mask.dim() >= 4:
-            mask = mask.squeeze(dim=1)
-
+        
         if mask is None:
             x = self.bn(x.permute(0, 2, 1))
             return x.permute(0, 2, 1)

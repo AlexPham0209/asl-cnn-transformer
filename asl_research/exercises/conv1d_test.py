@@ -1,0 +1,37 @@
+import torch
+import torch.nn as nn
+
+from asl_research.model.spatial_embedding import MaskedBatchNorm
+from asl_research.utils.utils import generate_video_padding_mask
+from torch.nn.utils.rnn import pad_sequence
+
+CHANNELS = 6
+a = torch.arange(0, 5 * CHANNELS).reshape(5, CHANNELS).float()
+b = torch.arange(0, 8 * CHANNELS).reshape(8, CHANNELS).float()
+c = torch.arange(0, 12 * CHANNELS).reshape(12, CHANNELS).float()
+
+size = [a.shape[0], b.shape[0], c.shape[0]]
+batch = pad_sequence([a, b, c], batch_first=True)
+conv = nn.Conv1d(CHANNELS, CHANNELS, kernel_size=3)
+
+batch = batch.permute(0, 2, 1)
+N, C, T = batch.shape
+new_length = lambda T: (T + 2 * conv.padding[0] - conv.dilation[0] * (conv.kernel_size[0] - 1) - 1) // conv.stride[0] + 1
+batch = conv(batch)
+
+new_sizes = torch.tensor(list(map(new_length, size)))
+padding_mask = generate_video_padding_mask(new_sizes)
+
+batch = (batch * padding_mask.squeeze(1)).permute(0, 2, 1)
+a = conv(a.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
+b = conv(b.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
+c = conv(c.unsqueeze(0).permute(0, 2, 1)).permute(0, 2, 1)
+
+print(batch)
+print(a)
+print(b)
+print(c)
+
+bn = MaskedBatchNorm(CHANNELS)
+batch = bn(batch, padding_mask)
+print(batch)
