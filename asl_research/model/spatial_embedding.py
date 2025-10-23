@@ -119,9 +119,18 @@ class Conv2DBlock(nn.Module):
 
 
 class Conv1DBlock(nn.Module):
-    def __init__(self, channels: int):
+    def __init__(
+        self, channels: int, kernel_size: int, stride: int = 1, padding: int = 0, dilation: int = 1
+    ):
         super(Conv1DBlock, self).__init__()
-        self.conv = nn.Conv1d()
+        self.conv = nn.Conv1d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=2,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+        )
         self.bn = MaskedBatchNorm(channels)
         self.relu = nn.ReLU()
 
@@ -150,7 +159,7 @@ class Conv1DBlock(nn.Module):
         x = self.bn(x, mask)
         x = self.relu(x)
 
-        return x
+        return x, lengths
 
 
 class MaskedBatchNorm(nn.Module):
