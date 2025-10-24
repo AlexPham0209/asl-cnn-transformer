@@ -12,14 +12,15 @@ c = torch.arange(3, 12 * CHANNELS * 5 + 3, 5).reshape(12, CHANNELS).float()
 
 size = torch.tensor([a.shape[0], b.shape[0], c.shape[0]])
 batch = pad_sequence([a, b, c], batch_first=True)
-conv = nn.Conv1d(CHANNELS, CHANNELS, kernel_size=3, stride=3)
-conv = Conv1DBlock(CHANNELS, 2)
+conv = Conv1DBlock(in_channels=CHANNELS, out_channels=CHANNELS, kernel_size=3)
+conv2 = Conv1DBlock(in_channels=CHANNELS, out_channels=CHANNELS, kernel_size=3)
 
 print(batch)
-print(conv(batch, size))
-conv(a.unsqueeze(0))
-conv(b.unsqueeze(0))
-conv(c.unsqueeze(0))
+batch, size = conv(batch, size)
+print(batch, size)
+batch, size = conv2(batch, size)
+print(batch, size)
+
 
 # batch = batch.permute(0, 2, 1)
 # N, C, T = batch.shape

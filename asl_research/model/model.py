@@ -9,7 +9,10 @@ from torch.nn.functional import softmax, log_softmax
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
 from asl_research.model.spatial_embedding import SpatialEmbedding
-from asl_research.utils.utils import generate_square_subsequent_mask, generate_padding_mask_from_lengths
+from asl_research.utils.utils import (
+    generate_square_subsequent_mask,
+    generate_padding_mask_from_lengths,
+)
 
 
 class ASLModel(nn.Module):
@@ -58,13 +61,10 @@ class ASLModel(nn.Module):
         self._init_weights()
 
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
-        src_mask = None
-        if src_lengths is not None:
-            src_mask = generate_padding_mask_from_lengths(src_lengths).to(src.device)
-
+        src, src_mask = self.src_embedding(src, src_lengths)
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
-        src = self.src_embedding(src, src_mask.squeeze(dim=1)) * math.sqrt(self.d_model)
+        src = src * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 
         src = self.encoder(src, src_mask)
@@ -93,15 +93,10 @@ class ASLModel(nn.Module):
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
-
-        src_mask = None
-        if src_lengths is not None:
-            src_mask = generate_padding_mask_from_lengths(src_lengths).to(src.device)
+        src, src_mask = self.src_embedding(src, src_lengths)
 
         # Feed the source sequence and its mask into the transformer's encoder
-        memory = self.encoder(
-            self.src_embedding(src, src_mask.squeeze(dim=1)) * math.sqrt(self.d_model), src_mask
-        )
+        memory = self.encoder(src * math.sqrt(self.d_model), src_mask)
 
         # Get the gloss sequence
         encoded = self.ff_1(memory)
@@ -131,7 +126,7 @@ class ASLModel(nn.Module):
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
-            
+
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
             sequence[:, t] = next_word
 

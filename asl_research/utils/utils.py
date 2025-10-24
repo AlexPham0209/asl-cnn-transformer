@@ -100,7 +100,7 @@ def generate_padding_mask_from_lengths(
     lengths = lengths.unsqueeze(1)
     indices = torch.arange(0, max_length).unsqueeze(0).to(lengths.device)
 
-    out = indices <= lengths - 1
+    out = indices < lengths
     return out.unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
 
 
