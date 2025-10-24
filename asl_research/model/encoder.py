@@ -30,7 +30,7 @@ class EncoderLayer(nn.Module):
         # Shape: (batch_size, sequence_size, d_model)
         x = x + self.dropout_1(self.attention(q=x, k=x, v=x, mask=mask))
         x = self.layer_norm_1(x)
-
+        
         # Position-Wise Feed Forward
         # Shape: (batch_size, sequence_size, d_model)
         x = x + self.dropout_2(self.ff(x))
