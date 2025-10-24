@@ -180,14 +180,14 @@ class Trainer:
             sentences = sentences.to(self.gpu_id)
 
             self.optimizer.zero_grad()
-            encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
+            encoder_out, decoder_out, lengths = self.model(videos, sentences[:, :-1], video_lengths)
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
 
@@ -261,13 +261,13 @@ class Trainer:
             predicted_sentences.extend(predicted_sentence)
 
             with torch.no_grad():
-                encoder_out, decoder_out = self.model(videos, sentences[:, :-1], video_lengths)
+                encoder_out, decoder_out, lengths = self.model(videos, sentences[:, :-1], video_lengths)
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, video_lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
 

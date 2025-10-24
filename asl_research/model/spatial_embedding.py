@@ -260,4 +260,4 @@ class SpatialEmbedding(nn.Module):
         x = self.relu(x)
 
         # Reshaping the output of the Resnet
-        return x, mask
+        return x, mask, lengths

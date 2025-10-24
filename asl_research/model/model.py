@@ -61,7 +61,7 @@ class ASLModel(nn.Module):
         self._init_weights()
 
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
-        src, src_mask = self.src_embedding(src, src_lengths)
+        src, src_mask, src_lengths = self.src_embedding(src, src_lengths)
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
 
         src = src * math.sqrt(self.d_model)
@@ -76,7 +76,7 @@ class ASLModel(nn.Module):
         # Should output the encoder output
         # src: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # trg: (batch_size, video_length, word_vocab_size)
-        return src, trg
+        return src, trg, src_lengths
 
     def _init_weights(self):
         for p in self.parameters():
@@ -93,11 +93,11 @@ class ASLModel(nn.Module):
 
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
-        src, src_mask = self.src_embedding(src, src_lengths)
+        src, src_mask, _ = self.src_embedding(src, src_lengths)
 
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(src * math.sqrt(self.d_model), src_mask)
-
+            
         # Get the gloss sequence
         encoded = self.ff_1(memory)
         encoded = softmax(encoded, dim=-1)
