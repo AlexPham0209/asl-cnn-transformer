@@ -201,7 +201,7 @@ class Trainer:
             translation_losses += translation_loss.item()
             loss = recognition_loss + translation_loss
             losses += loss.item()
-
+            
             loss.backward()
             self.optimizer.step()
 
@@ -282,10 +282,10 @@ class Trainer:
             loss = recognition_loss + translation_loss
             losses += loss.item()
 
-        print(f"Predicted Glosses: {predicted_glosses}")
-        print(f"Actual Glosses: {actual_glosses}\n")
-        print(f"Predicted Sentences: {predicted_sentences}")
-        print(f"Actual Sentences: {actual_sentences}")
+        # print(f"Predicted Glosses: {predicted_glosses}")
+        # print(f"Actual Glosses: {actual_glosses}\n")
+        # print(f"Predicted Sentences: {predicted_sentences}")
+        # print(f"Actual Sentences: {actual_sentences}")
         return (
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
@@ -377,7 +377,7 @@ def create_dataloaders(path: str, training_config: dict):
         random_subsampling=training_config["random_sampling"],
         is_train=False,
     )
-
+        
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
