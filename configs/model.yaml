@@ -23,7 +23,7 @@ training:
   diagram_path: ''
     
   # Weights used for joint loss
-  recognition_weight: 1.0
+  recognition_weight: 3.0
   translation_weight: 1.0
   
   # Random splitting seed and ration
