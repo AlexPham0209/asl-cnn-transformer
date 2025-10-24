@@ -20,7 +20,7 @@ from torchvision.transforms import (
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
 from asl_research.utils.utils import (
-    generate_video_padding_mask,
+    generate_padding_mask_from_lengths,
     pad_video_with_last_frame,
     pad_video_with_value,
 )

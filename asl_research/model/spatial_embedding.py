@@ -211,7 +211,7 @@ class SpatialEmbedding(nn.Module):
             case "resnet50":
                 self.extractor = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
 
-        for param in self.conv.parameters():
+        for param in self.extractor.parameters():
             param.requires_grad = False
 
         # Replacing final classification layer with our own depending on what model we choose
