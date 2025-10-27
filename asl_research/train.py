@@ -116,11 +116,11 @@ class Trainer:
             valid_sentence_wer,
         ) = self._validate()
         if self.gpu_id == 0:
-            print(f"Starting Average Gloss Loss: {valid_recognition_loss:>4f}", end=" - ")
-            print(f"Starting Average Sentence Loss: {valid_translation_loss:>4f}", end=" - ")
-            print(f"Starting Average Loss: {valid_loss:>4f}", end=" - ")
-            print(f"Starting Gloss WER: {valid_gloss_wer:>2f}%", end=" - ")
-            print(f"Starting Sentence WER: {valid_sentence_wer:>2f}%\n")
+            print(f"Starting Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
+            print(f"Starting Average Sentence Loss: {valid_translation_loss:4f}", end=" - ")
+            print(f"Starting Average Loss: {valid_loss:.4f}", end=" - ")
+            print(f"Starting Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
+            print(f"Starting Sentence WER: {valid_sentence_wer:.2f}%\n")
 
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
@@ -136,7 +136,7 @@ class Trainer:
             # Saving model
             self._save_best(epoch, valid_sentence_wer)
             self._save_checkpoint(epoch)
-            
+
             # Only print out diagnostic messages
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
@@ -147,15 +147,15 @@ class Trainer:
 
                 # Showing metrics
                 print(f"\nEpoch Time: {total_time:.1f} seconds")
-                print(f"Training Average Gloss Loss: {train_recognition_loss:>4f}", end=" - ")
-                print(f"Training Average Sentence Loss: {train_translation_loss:>4f}", end=" - ")
-                print(f"Training Average Loss: {train_loss:>4f}")
+                print(f"Training Average Gloss Loss: {train_recognition_loss:.4f}", end=" - ")
+                print(f"Training Average Sentence Loss: {train_translation_loss:.4f}", end=" - ")
+                print(f"Training Average Loss: {train_loss:.4f}")
 
-                print(f"Valid Average Gloss Loss: {valid_recognition_loss:>4f}", end=" - ")
-                print(f"Valid Average Sentence Loss: {valid_translation_loss:>4f}", end=" - ")
-                print(f"Valid Average Loss: {valid_loss:>4f}", end=" - ")
-                print(f"Valid Gloss WER: {valid_gloss_wer:>2f}%", end=" - ")
-                print(f"Valid Sentence WER: {valid_sentence_wer:>2f}%\n")
+                print(f"Valid Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
+                print(f"Valid Average Sentence Loss: {valid_translation_loss:.4f}", end=" - ")
+                print(f"Valid Average Loss: {valid_loss:.4f}", end=" - ")
+                print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
+                print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
 
             # Step scheduler and early stopping
             self.scheduler.step()
@@ -189,7 +189,7 @@ class Trainer:
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
 
@@ -277,7 +277,7 @@ class Trainer:
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
 

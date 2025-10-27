@@ -75,7 +75,7 @@ class PhoenixDataset(Dataset):
 
         self.df = df
         self.vocab = json.load(open(self.vocab_path))
-        
+
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
 
@@ -177,29 +177,6 @@ class PhoenixDataset(Dataset):
 
         return torch.stack(decode_jpeg(frames), dim=0)
 
-    def uniform_frame_subsampling(self, frames):
-        start = random.randint(0, self.max_start_frame)
-        end = random.randint(len(frames) - self.min_end_frame - 1, len(frames) - 1)
-        steps = (
-            self.num_frames
-            if isinstance(self.num_frames, int)
-            else random.randint(self.num_frames[0], self.num_frames[1])
-        )
-
-        return torch.linspace(start=start, end=end, steps=steps, dtype=int)
-
-    def random_frame_subsampling(self, frames):
-        start = random.randint(0, self.max_start_frame)
-        steps = (
-            self.num_frames
-            if isinstance(self.num_frames, int)
-            else random.randint(self.num_frames[0], self.num_frames[1])
-        )
-
-        frame_positions, _ = torch.randint(low=start, high=end, size=(steps,), dtype=int).sort()
-
-        return frame_positions
-
     @staticmethod
     def collate_fn(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
@@ -221,7 +198,7 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-
+    
     @staticmethod
     def collate_fn_no_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
