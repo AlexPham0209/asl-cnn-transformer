@@ -90,11 +90,11 @@ class PhoenixDataset(Dataset):
         self.train_transform = Compose(
             [
                 Resize((256, 256)),
-                RandomRotation(degrees=10),
+                RandomRotation(degrees=7.5),
                 RandomCrop(target_size),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
-                ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
+                # ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
             ]
         )
 
@@ -198,7 +198,7 @@ class PhoenixDataset(Dataset):
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
-    
+
     @staticmethod
     def collate_fn_no_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
