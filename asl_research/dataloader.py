@@ -41,7 +41,9 @@ class PhoenixDataset(Dataset):
         target_size: tuple = (224, 224),
         num_frames: int | list = 120,
         sampling_ratio: int = 2,
+        masking_ratio: float = 0.8,
         random_subsampling: bool = True,
+        random_masking: bool = True,
         is_train: bool = True,
     ):
         super().__init__()
@@ -53,6 +55,8 @@ class PhoenixDataset(Dataset):
         self.num_frames = num_frames
         self.sampling_ratio = sampling_ratio
         self.random_sampling = random_subsampling
+        self.masking_ratio = masking_ratio
+        self.random_masking = random_masking
 
         self.is_train = is_train
 
@@ -86,9 +90,11 @@ class PhoenixDataset(Dataset):
         self.train_transform = Compose(
             [
                 Resize((256, 256)),
+                RandomRotation(degrees=10),
                 RandomCrop(target_size),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
+                ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
             ]
         )
 
@@ -155,6 +161,11 @@ class PhoenixDataset(Dataset):
         frame_positions = torch.arange(
             start=start, end=len(frame_files) - 1, step=self.sampling_ratio
         )
+
+        if self.random_masking and self.is_train:
+            size = int(frame_positions.shape[-1] * self.masking_ratio)
+            masking_idx, _ = torch.randperm(frame_positions.shape[-1])[:size].sort()
+            frame_positions = frame_positions[masking_idx]
 
         for pos in frame_positions:
             frame = os.path.join(path, frame_files[pos.item()])

@@ -143,13 +143,13 @@ class Conv1DBlock(nn.Module):
     def forward(self, x: Tensor, lengths: Optional[Tensor] = None):
         x = x.permute(0, 2, 1)
         x = self.conv(x)
-        
+
         mask = None
         if lengths is not None and lengths.dim() == 1:
             lengths = self.calculate_new_lengths(lengths)
             mask = generate_padding_mask_from_lengths(lengths).to(lengths.device)
             x = x * mask.squeeze(1)
-    
+
         x = x.permute(0, 2, 1)
         x = self.bn(x, mask)
         x = self.relu(x)
@@ -210,7 +210,7 @@ class SpatialEmbedding(nn.Module):
                 self.extractor = efficientnet_b4(weights=EfficientNet_B4_Weights.IMAGENET1K_V1)
             case "resnet50":
                 self.extractor = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-        
+
         for param in self.extractor.parameters():
             param.requires_grad = False
 
@@ -232,6 +232,7 @@ class SpatialEmbedding(nn.Module):
         self.ff = nn.Linear(hidden_size, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x: Tensor, lengths: Tensor = None):
         """
@@ -258,6 +259,7 @@ class SpatialEmbedding(nn.Module):
         x = self.ff(x)
         x = self.bn(x, mask)
         x = self.relu(x)
+        x = self.dropout(x)
 
         # Reshaping the output of the Resnet
         return x, mask, lengths

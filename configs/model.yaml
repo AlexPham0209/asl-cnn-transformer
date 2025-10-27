@@ -12,7 +12,7 @@ training:
   epochs: 200
   batch_size: 8
   lr: 1e-3
-  weight_decay: 1e-4
+  weight_decay: 1e-3
   save_every: 50
   validate_every: 3
     
@@ -46,7 +46,9 @@ training:
   # Dataset
   num_frames: 30
   sampling_ratio: 2
+  masking_ratio: 0.8
   random_sampling: True
+  random_masking: True
   
 
 testing:

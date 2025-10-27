@@ -132,7 +132,7 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate(epoch)
-
+            
             # Saving model
             self._save_best(epoch, valid_loss)
             self._save_checkpoint(epoch)
@@ -156,7 +156,7 @@ class Trainer:
                 print(f"Valid Average Loss: {valid_loss:>4f}", end=" - ")
                 print(f"Valid Gloss WER: {valid_gloss_wer:>2f}%", end=" - ")
                 print(f"Valid Sentence WER: {valid_sentence_wer:>2f}%\n")
-            
+
             # Step scheduler and early stopping
             self.scheduler.step()
             # if self.early_stopping.early_stop(valid_loss):
@@ -180,7 +180,9 @@ class Trainer:
             sentences = sentences.to(self.gpu_id)
 
             self.optimizer.zero_grad()
-            encoder_out, decoder_out, lengths = self.model(videos, sentences[:, :-1], video_lengths)
+            encoder_out, decoder_out, lengths = self.model(
+                videos, sentences[:, :-1], video_lengths
+            )
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
@@ -201,11 +203,13 @@ class Trainer:
             translation_losses += translation_loss.item()
             loss = recognition_loss + translation_loss
             losses += loss.item()
-            
+
             loss.backward()
-            
+
             # Clip gradient by norm
-            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.training_config["max_norm"])
+            nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=self.training_config["max_norm"]
+            )
             self.optimizer.step()
 
         return (
@@ -244,11 +248,11 @@ class Trainer:
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
-            
+
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-            
+
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
@@ -264,7 +268,9 @@ class Trainer:
             predicted_sentences.extend(predicted_sentence)
 
             with torch.no_grad():
-                encoder_out, decoder_out, lengths = self.model(videos, sentences[:, :-1], video_lengths)
+                encoder_out, decoder_out, lengths = self.model(
+                    videos, sentences[:, :-1], video_lengths
+                )
 
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
@@ -274,7 +280,7 @@ class Trainer:
                 self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
                 * self.recognition_weight
             )
-            
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -296,7 +302,7 @@ class Trainer:
             losses / len(self.valid_dl),
             word_error_rate(predicted_glosses, actual_glosses) * 100.0,
             word_error_rate(predicted_sentences, actual_sentences) * 100.0,
-        ) 
+        )
 
     def _load_checkpoint(self):
         if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
@@ -382,7 +388,7 @@ def create_dataloaders(path: str, training_config: dict):
         random_subsampling=training_config["random_sampling"],
         is_train=False,
     )
-        
+
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
@@ -467,7 +473,9 @@ def start_training(rank: int, world_size: int, config: dict):
         lr=float(training_config["lr"]),
         weight_decay=float(training_config["weight_decay"]),
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_config["T_max"])
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=training_config["T_max"]
+    )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )
