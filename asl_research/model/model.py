@@ -63,7 +63,7 @@ class ASLModel(nn.Module):
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src, src_mask, src_lengths = self.src_embedding(src, src_lengths)
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token).to(trg.device)
-
+        
         src = src * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 
@@ -72,7 +72,7 @@ class ASLModel(nn.Module):
 
         src = self.ff_1(src)
         trg = self.ff_2(trg)
-
+    
         # Should output the encoder output
         # src: (batch_size, gloss_sequence_length, gloss_vocab_size)
         # trg: (batch_size, video_length, word_vocab_size)

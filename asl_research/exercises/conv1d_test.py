@@ -15,12 +15,12 @@ batch = pad_sequence([a, b, c], batch_first=True)
 conv = Conv1DBlock(in_channels=CHANNELS, out_channels=CHANNELS, kernel_size=3)
 conv2 = Conv1DBlock(in_channels=CHANNELS, out_channels=CHANNELS, kernel_size=3)
 
-# print(batch)
-# batch, size = conv(batch, size)
-# print(batch, size)
-# conv(a.unsqueeze(0))
-# batch, size = conv2(batch, size)
-# print(batch, size)
+print(batch)
+batch, size = conv(batch, size)
+print(batch, size)
+conv(a.unsqueeze(0))
+batch, size = conv2(batch, size)
+print(batch, size)
 
 
 # batch = batch.permute(0, 2, 1)

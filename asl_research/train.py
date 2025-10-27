@@ -147,16 +147,16 @@ class Trainer:
 
                 # Showing metrics
                 print(f"\nEpoch Time: {total_time:.1f} seconds")
-                print(f"Training Average Gloss Loss: {train_recognition_loss:>8f}", end=" - ")
-                print(f"Training Average Sentence Loss: {train_translation_loss:>8f}", end=" - ")
-                print(f"Training Average Loss: {train_loss:>8f}")
+                print(f"Training Average Gloss Loss: {train_recognition_loss:>4f}", end=" - ")
+                print(f"Training Average Sentence Loss: {train_translation_loss:>4f}", end=" - ")
+                print(f"Training Average Loss: {train_loss:>4f}")
 
-                print(f"Valid Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
-                print(f"Valid Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-                print(f"Valid Average Loss: {valid_loss:>8f}", end=" - ")
-                print(f"Valid Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
-                print(f"Valid Sentence WER: {valid_sentence_wer:>8f}\n")
-
+                print(f"Valid Average Gloss Loss: {valid_recognition_loss:>4f}", end=" - ")
+                print(f"Valid Average Sentence Loss: {valid_translation_loss:>4f}", end=" - ")
+                print(f"Valid Average Loss: {valid_loss:>4f}", end=" - ")
+                print(f"Valid Gloss WER: {valid_gloss_wer:>2f}%", end=" - ")
+                print(f"Valid Sentence WER: {valid_sentence_wer:>2f}%\n")
+            
             # Step scheduler and early stopping
             self.scheduler.step(valid_loss)
             # if self.early_stopping.early_stop(valid_loss):
@@ -290,9 +290,9 @@ class Trainer:
             recognition_losses / len(self.valid_dl),
             translation_losses / len(self.valid_dl),
             losses / len(self.valid_dl),
-            word_error_rate(predicted_glosses, actual_glosses),
-            word_error_rate(predicted_sentences, actual_sentences),
-        )
+            word_error_rate(predicted_glosses, actual_glosses) * 100.0,
+            word_error_rate(predicted_sentences, actual_sentences) * 100.0,
+        ) 
 
     def _load_checkpoint(self):
         if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
@@ -363,10 +363,11 @@ class Trainer:
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
     df = pd.read_csv(os.path.join(path, "dataset.csv"))
-    train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
-    test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
-
-    train = train.head(n=10)
+    train_size, valid_size, test_size = training_config["split"]
+    size = valid_size + test_size
+    test_size /= size
+    train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
+    test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
 
     train_set = PhoenixDataset(
         df=train,
@@ -401,7 +402,7 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=5,
+        batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
@@ -492,7 +493,7 @@ def main():
     print(f"GPU count: {world_size}")
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
-    mp.spawn(start_training, args=(1, config), nprocs=1)
+    mp.spawn(start_training, args=(world_size, config), nprocs=1)
 
 
 if __name__ == "__main__":
