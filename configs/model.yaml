@@ -10,15 +10,15 @@ model:
 training:
   # Basic hyperparameters
   epochs: 200
-  batch_size: 4
+  batch_size: 8
   lr: 1e-3
-  weight_decay: 1e-3
-  save_every: 500
+  weight_decay: 1e-4
+  save_every: 50
   validate_every: 3
     
   # File path locations
   save_path: 'models'
-  file_name: 'test'
+  file_name: 'best'
   load_path: ''
   diagram_path: ''
     
@@ -42,7 +42,7 @@ training:
     
   # Misc.
   num_workers: 4
-    
+
   # Dataset
   num_frames: 30
   sampling_ratio: 2
