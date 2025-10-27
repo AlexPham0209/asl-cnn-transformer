@@ -259,14 +259,14 @@ class Trainer:
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-
+        
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
 
             actual_sentences.extend(actual_sentence)
             predicted_sentences.extend(predicted_sentence)
-
+        
             with torch.no_grad():
                 encoder_out, decoder_out, lengths = self.model(
                     videos, sentences[:, :-1], video_lengths
@@ -314,7 +314,7 @@ class Trainer:
         self.curr_epoch = checkpoint["epoch"] + 1
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self.best_loss = checkpoint["best_loss"]
+        self.best_metric = checkpoint["best_metric"]
         self.train_loss_history = checkpoint["train_loss_history"]
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
@@ -346,7 +346,7 @@ class Trainer:
                 "epoch": epoch,
                 "model_state_dict": self.model.module.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
-                "best_loss": self.best_loss,
+                "best_metric": self.best_metric,
                 "train_loss_history": self.train_loss_history,
                 "valid_loss_history": self.valid_loss_history,
             },
