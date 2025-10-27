@@ -31,7 +31,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
 PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 
 def ddp_setup(rank, world_size):
@@ -102,7 +102,7 @@ class Trainer:
         self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
 
         # Creating the losses used for recognition and translation
-        self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"]).to(gpu_id)
+        self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"], zero_infinity=True).to(gpu_id)
         self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
             gpu_id
         )
@@ -116,11 +116,11 @@ class Trainer:
             valid_sentence_wer,
         ) = self._validate()
         if self.gpu_id == 0:
-            print(f"Starting Average Gloss Loss: {valid_recognition_loss:>8f}", end=" - ")
-            print(f"Starting Average Sentence Loss: {valid_translation_loss:>8f}", end=" - ")
-            print(f"Starting Average Loss: {valid_loss:>8f}", end=" - ")
-            print(f"Starting Gloss WER: {valid_gloss_wer:>8f}", end=" - ")
-            print(f"Starting Sentence WER: {valid_sentence_wer:>8f}\n")
+            print(f"Starting Average Gloss Loss: {valid_recognition_loss:>4f}", end=" - ")
+            print(f"Starting Average Sentence Loss: {valid_translation_loss:>4f}", end=" - ")
+            print(f"Starting Average Loss: {valid_loss:>4f}", end=" - ")
+            print(f"Starting Gloss WER: {valid_gloss_wer:>2f}%", end=" - ")
+            print(f"Starting Sentence WER: {valid_sentence_wer:>2f}%\n")
 
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
@@ -158,7 +158,7 @@ class Trainer:
                 print(f"Valid Sentence WER: {valid_sentence_wer:>2f}%\n")
             
             # Step scheduler and early stopping
-            self.scheduler.step(valid_loss)
+            self.scheduler.step()
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
@@ -187,7 +187,7 @@ class Trainer:
             T, N, C = encoder_out.shape
             input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
                 * self.recognition_weight
             )
 
@@ -248,7 +248,7 @@ class Trainer:
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-
+            
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
@@ -269,11 +269,12 @@ class Trainer:
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
             recognition_loss = (
-                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
+                self.ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
                 * self.recognition_weight
             )
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -475,7 +476,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=train_dl,
+        valid_dl=valid_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -496,7 +497,7 @@ def main():
     print(f"GPU count: {world_size}")
 
     assert world_size > 0, "Not enough GPUs (Need more than 1)"
-    mp.spawn(start_training, args=(world_size, config), nprocs=1)
+    mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
 
 
 if __name__ == "__main__":
