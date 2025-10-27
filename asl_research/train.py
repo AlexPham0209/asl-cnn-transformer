@@ -203,6 +203,9 @@ class Trainer:
             losses += loss.item()
             
             loss.backward()
+            
+            # Clip gradient by norm
+            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.training_config["max_norm"])
             self.optimizer.step()
 
         return (
@@ -241,7 +244,7 @@ class Trainer:
                 encoder_out, decoder_out = self.model.module.greedy_decode(
                     videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
                 )
-
+            
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
@@ -463,7 +466,7 @@ def start_training(rank: int, world_size: int, config: dict):
         lr=float(training_config["lr"]),
         weight_decay=float(training_config["weight_decay"]),
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_config["T_max"])
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
     )

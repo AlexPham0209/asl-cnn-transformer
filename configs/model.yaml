@@ -33,6 +33,12 @@ training:
   # Early Stopping
   patience: 8
   delta: 0.01
+
+  # Scheduler
+  T_max: 50
+
+  # Gradient clipping
+  max_norm: 1.0
     
   # Misc.
   num_workers: 4
