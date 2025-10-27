@@ -73,7 +73,7 @@ class Trainer:
         self.test_dl = test_dl
 
         # Config and training settings
-        self.best_loss = torch.inf
+        self.best_metric = torch.inf
         self.train_loss_history = []
         self.valid_loss_history = []
 
@@ -132,11 +132,11 @@ class Trainer:
                 valid_gloss_wer,
                 valid_sentence_wer,
             ) = self._validate(epoch)
-            
-            # Saving model
-            self._save_best(epoch, valid_loss)
-            self._save_checkpoint(epoch)
 
+            # Saving model
+            self._save_best(epoch, valid_sentence_wer)
+            self._save_checkpoint(epoch)
+            
             # Only print out diagnostic messages
             if self.gpu_id == 0:
                 total_time = time.time() - start_time
@@ -318,18 +318,18 @@ class Trainer:
         self.train_loss_history = checkpoint["train_loss_history"]
         self.valid_loss_history = checkpoint["valid_loss_history"]
 
-    def _save_best(self, epoch: int, valid_loss: float):
-        if valid_loss > self.best_loss or self.gpu_id != 0:
+    def _save_best(self, epoch: int, metric: float):
+        if metric > self.best_metric or self.gpu_id != 0:
             return
 
-        self.best_loss = valid_loss
+        self.best_metric = metric
         print("\nNew best model, saving...")
         torch.save(
             {
                 "epoch": epoch,
                 "model_state_dict": self.model.module.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
-                "best_loss": self.best_loss,
+                "best_metric": self.best_metric,
                 "train_loss_history": self.train_loss_history,
                 "valid_loss_history": self.valid_loss_history,
             },

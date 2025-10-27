@@ -35,14 +35,14 @@ training:
   delta: 0.01
 
   # Scheduler
-  T_max: 50
+  T_max: 10
 
   # Gradient clipping
   max_norm: 1.0
     
   # Misc.
   num_workers: 4
-
+  
   # Dataset
   num_frames: 30
   sampling_ratio: 2

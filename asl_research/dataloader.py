@@ -75,7 +75,7 @@ class PhoenixDataset(Dataset):
 
         self.df = df
         self.vocab = json.load(open(self.vocab_path))
-
+        
         self.glosses = self.vocab["glosses"]
         self.words = self.vocab["words"]
 
