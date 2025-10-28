@@ -131,11 +131,11 @@ class Trainer:
             total_time = time.time() - start_time
             
             if self.gpu_id == 0:
-                print(f"\nEpoch Time: {total_time:.1f} seconds", end=" - ")
+                print(f"Epoch Time: {total_time:.1f} seconds", end=" - ")
                 print(f"Training Average Gloss Loss: {train_recognition_loss:.4f}", end=" - ")
                 print(f"Training Average Sentence Loss: {train_translation_loss:.4f}", end=" - ")
-                print(f"Training Average Loss: {train_loss:.4f}")
-
+                print(f"Training Average Loss: {train_loss:.4f}\n")
+            
             if epoch % self.validate_every == 0:
                 start_time = time.time()
                 (
@@ -146,13 +146,12 @@ class Trainer:
                     valid_sentence_wer,
                 ) = self._validate(epoch)
                 total_time = time.time() - start_time
-            
+                    
                 # Saving model
                 self.valid_loss_history.append(valid_loss)
-                self._save_best(epoch, valid_sentence_wer)
 
                 if self.gpu_id == 0:
-                    print(f"\Validation Time: {total_time:.1f} seconds", end=" - ")
+                    print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
                     
                     # Showing metrics
                     print(f"Valid Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
@@ -160,11 +159,15 @@ class Trainer:
                     print(f"Valid Average Loss: {valid_loss:.4f}", end=" - ")
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
-
+                
+                self._save_best(epoch, valid_sentence_wer)
+                self.scheduler.step(valid_loss)
+            
             self._save_checkpoint(epoch)
+            print()
             
             # Step scheduler and early stopping
-            self.scheduler.step(valid_loss)
+            
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
@@ -246,7 +249,7 @@ class Trainer:
 
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
-
+    
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
 
@@ -329,7 +332,7 @@ class Trainer:
             return
 
         self.best_metric = metric
-        print("\nNew best model, saving...")
+        print("New best model, saving...")
         torch.save(
             {
                 "epoch": epoch,
@@ -346,7 +349,7 @@ class Trainer:
         if epoch % self.save_every != 0 or self.gpu_id != 0:
             return
 
-        print("\nCheckpoint, saving...")
+        print("Checkpoint, saving...")
         torch.save(
             {
                 "epoch": epoch,
