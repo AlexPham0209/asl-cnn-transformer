@@ -12,14 +12,14 @@ training:
   epochs: 200
   batch_size: 8
   lr: 1e-3
-  weight_decay: 1e-3
+  weight_decay: 5e-4
   save_every: 50
   validate_every: 3
     
   # File path locations
   save_path: 'models'
   file_name: 'best'
-  load_path: ''
+  load_path: 'models/epoch_100.pt'
   diagram_path: ''
     
   # Weights used for joint loss
@@ -48,9 +48,9 @@ training:
   sampling_ratio: 2
   masking_ratio: 0.8
   random_sampling: True
-  random_masking: True
+  random_masking: False
   
 
 testing:
-  load_path: 'models/test.pt'
+  load_path: 'models/best.pt'
   beam_search: false

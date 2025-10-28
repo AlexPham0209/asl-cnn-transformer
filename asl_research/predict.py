@@ -37,9 +37,9 @@ test, valid = train_test_split(df, test_size=0.5, random_state=training_config["
 
 print(train.head(n=5))
 
-# Creating dataset and getting gloss and word vocabulary dictionaries
+# Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    df=train,
+    df=test,
     root_dir=PROCESSED_PATH,
     num_frames=training_config["num_frames"],
     target_size=(224, 224),
@@ -79,7 +79,7 @@ if len(load_path) > 0:
     checkpoint = torch.load(load_path, weights_only=False)
     curr_epoch = checkpoint["epoch"] + 1
     model.load_state_dict(checkpoint["model_state_dict"])
-    best_loss = checkpoint["best_loss"]
+    best_metric = checkpoint["best_metric"]
     train_loss_history = checkpoint["train_loss_history"]
     valid_loss_history = checkpoint["valid_loss_history"]
 
@@ -90,7 +90,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(5):
+for i in range(20):
     videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(
         iter(dataloader)
     )
@@ -101,7 +101,7 @@ for i in range(5):
     video_lengths = video_lengths.to(DEVICE)
 
     encoder_out, decoder_out = model.greedy_decode(videos, video_lengths, max_len=30)
-
+    
     actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
     predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 

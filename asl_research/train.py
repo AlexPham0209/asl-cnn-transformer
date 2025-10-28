@@ -85,7 +85,8 @@ class Trainer:
         self.file_name = training_config["file_name"]
         self.diagram_path = training_config["diagram_path"]
         self.save_every = training_config["save_every"]
-
+        self.validate_every = training_config["validate_every"]
+        
         # Set up loss weights
         self.recognition_weight = training_config["recognition_weight"]
         self.translation_weight = training_config["translation_weight"]
@@ -115,6 +116,7 @@ class Trainer:
             valid_gloss_wer,
             valid_sentence_wer,
         ) = self._validate()
+        
         if self.gpu_id == 0:
             print(f"Starting Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
             print(f"Starting Average Sentence Loss: {valid_translation_loss:4f}", end=" - ")
@@ -125,44 +127,48 @@ class Trainer:
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            (
-                valid_recognition_loss,
-                valid_translation_loss,
-                valid_loss,
-                valid_gloss_wer,
-                valid_sentence_wer,
-            ) = self._validate(epoch)
-
-            # Saving model
-            self._save_best(epoch, valid_sentence_wer)
-            self._save_checkpoint(epoch)
-
-            # Only print out diagnostic messages
+            self.train_loss_history.append(train_loss)
+            total_time = time.time() - start_time
+            
             if self.gpu_id == 0:
-                total_time = time.time() - start_time
-
-                # Adding to training and validation history
-                self.train_loss_history.append(train_loss)
-                self.valid_loss_history.append(valid_loss)
-
-                # Showing metrics
-                print(f"\nEpoch Time: {total_time:.1f} seconds")
+                print(f"\nEpoch Time: {total_time:.1f} seconds", end=" - ")
                 print(f"Training Average Gloss Loss: {train_recognition_loss:.4f}", end=" - ")
                 print(f"Training Average Sentence Loss: {train_translation_loss:.4f}", end=" - ")
                 print(f"Training Average Loss: {train_loss:.4f}")
 
-                print(f"Valid Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
-                print(f"Valid Average Sentence Loss: {valid_translation_loss:.4f}", end=" - ")
-                print(f"Valid Average Loss: {valid_loss:.4f}", end=" - ")
-                print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
-                print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
+            if epoch % self.validate_every == 0:
+                start_time = time.time()
+                (
+                    valid_recognition_loss,
+                    valid_translation_loss,
+                    valid_loss,
+                    valid_gloss_wer,
+                    valid_sentence_wer,
+                ) = self._validate(epoch)
+                total_time = time.time() - start_time
+            
+                # Saving model
+                self.valid_loss_history.append(valid_loss)
+                self._save_best(epoch, valid_sentence_wer)
 
+                if self.gpu_id == 0:
+                    print(f"\Validation Time: {total_time:.1f} seconds", end=" - ")
+                    
+                    # Showing metrics
+                    print(f"Valid Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
+                    print(f"Valid Average Sentence Loss: {valid_translation_loss:.4f}", end=" - ")
+                    print(f"Valid Average Loss: {valid_loss:.4f}", end=" - ")
+                    print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
+                    print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
+
+            self._save_checkpoint(epoch)
+            
             # Step scheduler and early stopping
-            self.scheduler.step()
+            self.scheduler.step(valid_loss)
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
-
+    
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
         self.train_dl.sampler.set_epoch(epoch)
@@ -473,8 +479,8 @@ def start_training(rank: int, world_size: int, config: dict):
         lr=float(training_config["lr"]),
         weight_decay=float(training_config["weight_decay"]),
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=training_config["T_max"]
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, "min"
     )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
