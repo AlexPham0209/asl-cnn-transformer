@@ -157,7 +157,6 @@ class SpatialEmbedding(nn.Module):
         x = self.ff(x)
         x = self.bn(x, mask)
         x = self.relu(x)
-        x = self.dropout(x)
 
         # Reshaping the output of the Resnet
         return x, mask, lengths

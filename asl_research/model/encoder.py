@@ -8,7 +8,6 @@ from asl_research.model.attention import MultiHeadAttention
 from asl_research.model.position_wise_feed_forward import PositionWiseFeedForward
 from asl_research.model.positional_embedding import PositionalEncoding
 
-
 class EncoderLayer(nn.Module):
     def __init__(
         self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
@@ -19,7 +18,7 @@ class EncoderLayer(nn.Module):
         self.attention = MultiHeadAttention(d_model, num_heads)
         self.layer_norm_1 = nn.LayerNorm(d_model)
         self.dropout_1 = nn.Dropout(p=dropout)
-
+        
         # Position-Wise Feed Forward
         self.ff = PositionWiseFeedForward(d_model, hidden_size, dropout)
         self.layer_norm_2 = nn.LayerNorm(d_model)
