@@ -107,7 +107,7 @@ class Trainer:
         self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
             gpu_id
         )
-
+    
     def train(self):
         (
             valid_recognition_loss,
@@ -395,7 +395,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
-        is_train=False,
+        is_train=True,
     )
 
     valid_set = PhoenixDataset(
