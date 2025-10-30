@@ -503,7 +503,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer.train()
     destroy_process_group()
-
+    
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
