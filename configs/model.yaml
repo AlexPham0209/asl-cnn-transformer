@@ -12,7 +12,7 @@ training:
   epochs: 200
   batch_size: 8
   lr: 1e-3
-  weight_decay: 1e-4
+  weight_decay: 0
   save_every: 25
   validate_every: 3
     
@@ -21,7 +21,7 @@ training:
   file_name: 'best2'
   load_path: ''
   diagram_path: ''
-    
+
   # Weights used for joint loss
   recognition_weight: 1.0
   translation_weight: 1.0
