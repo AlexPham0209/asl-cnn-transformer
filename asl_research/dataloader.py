@@ -59,7 +59,7 @@ class PhoenixDataset(Dataset):
         self.random_masking = random_masking
 
         self.is_train = is_train
-
+    
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
         )
@@ -90,7 +90,7 @@ class PhoenixDataset(Dataset):
         self.train_transform = Compose(
             [
                 Resize((256, 256)),
-                RandomRotation(degrees=7.5),
+                # RandomRotation(degrees=7.5),
                 RandomCrop(target_size),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),

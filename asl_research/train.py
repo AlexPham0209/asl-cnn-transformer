@@ -164,7 +164,6 @@ class Trainer:
                 self.scheduler.step(valid_loss)
             
             self._save_checkpoint(epoch)
-            print()
             
             # Step scheduler and early stopping
             
@@ -332,7 +331,7 @@ class Trainer:
             return
 
         self.best_metric = metric
-        print("New best model, saving...")
+        print("New best model, saving...\n")
         torch.save(
             {
                 "epoch": epoch,
@@ -349,7 +348,7 @@ class Trainer:
         if epoch % self.save_every != 0 or self.gpu_id != 0:
             return
 
-        print("Checkpoint, saving...")
+        print("Checkpoint, saving...\n")
         torch.save(
             {
                 "epoch": epoch,
@@ -483,7 +482,7 @@ def start_training(rank: int, world_size: int, config: dict):
         weight_decay=float(training_config["weight_decay"]),
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min"
+        optimizer, "min", factor=0.8, patience=8, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
