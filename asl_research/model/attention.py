@@ -7,7 +7,6 @@ import torch.nn as nn
 
 from asl_research.utils.utils import concat, split
 
-
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: float, num_heads: int = 8):
         super(MultiHeadAttention, self).__init__()
@@ -92,6 +91,6 @@ class ScaledDotProductAttention(nn.Module):
 
         # Calculate a probability distribution with the current token to all other tokens in the sequence
         scores = self.softmax(scores)
-
+        
         # Shape: (batch_size, num_heads, target_sequence_size, d_v)
         return scores @ v
