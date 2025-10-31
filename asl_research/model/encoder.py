@@ -44,7 +44,7 @@ class TransformerEncoder(nn.Module):
         num_layers: int,
         d_model: int = 512,
         num_heads: int = 8,
-        hidden_size: int = 512,
+        hidden_size: int = 1024,
         dropout: float = 0.1,
     ):
         super(TransformerEncoder, self).__init__()

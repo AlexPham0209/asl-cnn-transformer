@@ -10,7 +10,7 @@ from asl_research.model.positional_embedding import PositionalEncoding
 
 class DecoderLayer(nn.Module):
     def __init__(
-        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 512, dropout: float = 0.1
+        self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
     ):
         super(DecoderLayer, self).__init__()
 
@@ -80,7 +80,7 @@ class TransformerDecoder(nn.Module):
         num_layers: int,
         d_model: int = 512,
         num_heads: int = 8,
-        hidden_size: int = 512,
+        hidden_size: int = 1024,
         dropout: float = 0.1,
     ):
         super(TransformerDecoder, self).__init__()
