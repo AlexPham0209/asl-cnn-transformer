@@ -26,7 +26,6 @@ class ASLModel(nn.Module):
         word_to_idx: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
         idx_to_word: dict = {0: "<sos>", 1: "<eos>", 2: "<pad>"},
         d_model: int = 512,
-        hidden_size: int = 1024,
         num_heads: int = 8,
         dropout: float = 0.1,
     ):
@@ -46,17 +45,17 @@ class ASLModel(nn.Module):
 
         # Encoder
         self.src_embedding = SpatialEmbedding(
-            d_model=d_model, hidden_size=hidden_size, dropout=dropout, pretrained_model=pretrained_embedding
+            d_model=d_model, hidden_size=1024, dropout=dropout, pretrained_model=pretrained_embedding
         )
         self.encoder = TransformerEncoder(
-            num_layers=num_encoders, d_model=d_model, num_heads=num_heads, hidden_size=hidden_size, dropout=dropout
+            num_layers=num_encoders, d_model=d_model, num_heads=num_heads, hidden_size=2048, dropout=dropout
         )
         self.ff_1 = nn.Linear(d_model, len(self.gloss_to_idx))
 
         # Decoder
         self.trg_embedding = nn.Embedding(len(self.word_to_idx), embedding_dim=d_model)
         self.decoder = TransformerDecoder(
-            num_layers=num_decoders, d_model=d_model, num_heads=num_heads, hidden_size=hidden_size, dropout=dropout
+            num_layers=num_decoders, d_model=d_model, num_heads=num_heads, hidden_size=2048, dropout=dropout
         )
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
         self._init_weights()

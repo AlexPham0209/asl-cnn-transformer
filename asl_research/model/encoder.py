@@ -53,7 +53,7 @@ class TransformerEncoder(nn.Module):
         self.layers = nn.ModuleList(
             [EncoderLayer(d_model, num_heads, hidden_size, dropout) for _ in range(num_layers)]
         )
-
+    
     def forward(self, x: Tensor, mask: Optional[Tensor] = None):
         """
         Feeds input tensor through multiple layers of encoders which encodes the

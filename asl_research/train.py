@@ -471,7 +471,6 @@ def start_training(rank: int, world_size: int, config: dict):
         word_to_idx=word_to_idx,
         idx_to_word=idx_to_word,
         d_model=model_config["d_model"],
-        hidden_size=model_config["hidden_size"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
     )
