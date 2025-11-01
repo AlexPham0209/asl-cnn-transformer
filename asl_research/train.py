@@ -176,7 +176,7 @@ class Trainer:
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
         self.train_dl.sampler.set_epoch(epoch)
-
+        
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -234,7 +234,7 @@ class Trainer:
 
         return (
             recognition_losses / len(self.train_dl.dataset),
-            translation_losses / len(self.valid_dl.dataset),
+            translation_losses / len(self.train_dl.dataset),
             losses / len(self.train_dl.dataset),
         )
 
@@ -279,7 +279,7 @@ class Trainer:
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-        
+            
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
@@ -427,9 +427,7 @@ def create_dataloaders(path: str, training_config: dict):
     test_size /= size
     train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
-
-    train = train.head(n=20)
-
+    
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
@@ -437,7 +435,9 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
-        is_train=False,
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
+        is_train=True,
     )
 
     valid_set = PhoenixDataset(
@@ -463,8 +463,8 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=5,
-        num_workers=1,
+        batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(train_set),
@@ -525,7 +525,7 @@ def start_training(rank: int, world_size: int, config: dict):
         weight_decay=float(training_config["weight_decay"]),
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min", factor=0.8, patience=8, min_lr=1e-6
+        optimizer, "min", factor=0.8, patience=4, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
@@ -535,7 +535,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=train_dl,
+        valid_dl=valid_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,

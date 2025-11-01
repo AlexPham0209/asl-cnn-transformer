@@ -91,8 +91,7 @@ class PhoenixDataset(Dataset):
             [
                 Resize((256, 256)),
                 # RandomRotation(degrees=7.5),
-                # RandomCrop(target_size),
-                CenterCrop(target_size),
+                RandomCrop(target_size),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
                 # ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
