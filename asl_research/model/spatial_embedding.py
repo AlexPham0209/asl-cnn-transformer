@@ -125,8 +125,8 @@ class SpatialEmbedding(nn.Module):
             case "resnet50":
                 self.extractor.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
         
-        self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=5)
-        self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=5)
+        self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
+        self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
         self.ff = nn.Linear(hidden_size, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
         self.relu = nn.ReLU()
