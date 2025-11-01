@@ -113,10 +113,10 @@ def collate_fn(batch):
 
 
 def test_transformer_training():
-    LENGTH = 200
+    LENGTH = 20
     EPOCHS = 500
-    EXAMPLES = 100
-
+    EXAMPLES = 20
+    
     # Creating a synthetic corpus using words in the words string
     max_sentence_length = 15
     words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"

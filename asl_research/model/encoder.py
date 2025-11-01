@@ -27,6 +27,9 @@ class EncoderLayer(nn.Module):
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None):
         # Self Attention
         # Shape: (batch_size, sequence_size, d_model)
+        # x = x + self.dropout_1(self.attention(q=x, k=x, v=x, mask=mask))
+        # x = self.layer_norm_1(x)
+
         x_norm = self.layer_norm_1(x)
         x = x + self.dropout_1(self.attention(q=x_norm, k=x_norm, v=x_norm, mask=mask))
 
