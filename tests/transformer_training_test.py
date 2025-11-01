@@ -114,7 +114,7 @@ def collate_fn(batch):
 
 def test_transformer_training():
     LENGTH = 200
-    EPOCHS = 250
+    EPOCHS = 500
     EXAMPLES = 100
 
     # Creating a synthetic corpus using words in the words string
@@ -141,8 +141,8 @@ def test_transformer_training():
     data = DataLoader(dataset, batch_size=16, collate_fn=collate_fn)
 
     transformer = BaseTransformer(
-        num_encoders=2,
-        num_decoders=2,
+        num_encoders=3,
+        num_decoders=3,
         src_vocab_size=len(word_to_idx),
         trg_vocab_size=len(word_to_idx),
         pad_token=word_to_idx['<pad>'],

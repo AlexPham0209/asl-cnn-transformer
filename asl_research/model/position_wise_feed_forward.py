@@ -7,6 +7,7 @@ class PositionWiseFeedForward(nn.Module):
         super(PositionWiseFeedForward, self).__init__()
         self.w1 = nn.Linear(in_features=d_model, out_features=hidden_size)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=dropout)
         self.w2 = nn.Linear(in_features=hidden_size, out_features=d_model)
 
     def forward(self, x: Tensor):
@@ -24,4 +25,5 @@ class PositionWiseFeedForward(nn.Module):
         """
         x = self.w1(x)
         x = self.relu(x)
+        x = self.dropout(x)
         return self.w2(x)

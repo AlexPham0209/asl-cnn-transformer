@@ -291,7 +291,7 @@ class Trainer:
                 encoder_out, decoder_out, lengths = self.model(
                     videos, sentences[:, :-1], video_lengths
                 )
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
@@ -309,7 +309,7 @@ class Trainer:
             # Calculating the joint loss
             recognition_losses += recognition_loss.item() * videos.size(0)
             translation_losses += translation_loss.item() * videos.size(0)
-        
+            
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
@@ -343,13 +343,7 @@ class Trainer:
         predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
         actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
-        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
-
-        # print(f"Predicted Glosses: {predicted_glosses}")
-        # print(f"Actual Glosses: {actual_glosses}\n")
-        if self.gpu_id == 0:
-            print(f"Predicted Sentences: {predicted_sentences}")
-            print(f"Actual Sentences: {actual_sentences}")
+        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))   
         
         return (
             recognition_losses / len(self.valid_dl.dataset),
