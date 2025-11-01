@@ -1,3 +1,4 @@
+import itertools
 import os
 import time
 
@@ -25,6 +26,7 @@ from torch.utils.data.distributed import DistributedSampler
 from sklearn.model_selection import train_test_split
 import torch.multiprocessing as mp
 import pandas as pd
+import torch.distributed as dist
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -207,12 +209,13 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item()
-            translation_losses += translation_loss.item()
-            loss = recognition_loss + translation_loss
-            losses += loss.item()
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
 
-            loss.backward()
+            loss = recognition_loss + translation_loss
+            losses += loss.item() * videos.size(0)
+
+            loss.backward() 
 
             # Clip gradient by norm
             nn.utils.clip_grad_norm_(
@@ -220,10 +223,21 @@ class Trainer:
             )
             self.optimizer.step()
 
+        # Calculating global average loss among all devices
+        losses = torch.tensor(losses)
+        recognition_losses = torch.tensor(recognition_losses)
+        translation_losses = torch.tensor(translation_losses)
+        size = torch.tensor(len(self.train_dl))
+
+        torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(size, op=dist.ReduceOp.SUM)
+
         return (
-            recognition_losses / len(self.train_dl),
-            translation_losses / len(self.train_dl),
-            losses / len(self.train_dl),
+            recognition_losses / size,
+            translation_losses / size,
+            losses / size,
         )
 
     def _validate(self, epoch: int = 1):
@@ -295,19 +309,50 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item()
-            translation_losses += translation_loss.item()
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
+
             loss = recognition_loss + translation_loss
-            losses += loss.item()
+            losses += loss.item() * videos.size(0)
 
         # print(f"Predicted Glosses: {predicted_glosses}")
         # print(f"Actual Glosses: {actual_glosses}\n")
         # print(f"Predicted Sentences: {predicted_sentences}")
         # print(f"Actual Sentences: {actual_sentences}")
+
+        # Calculating global average loss among all devices
+        losses = torch.tensor(losses)
+        recognition_losses = torch.tensor(recognition_losses)
+        translation_losses = torch.tensor(translation_losses)
+        size = torch.tensor(len(self.valid_dl))
+       
+        torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(size, op=dist.ReduceOp.SUM)
+
+        # Gather all calculated samples from 
+        world_size = dist.get_world_size()
+        gathered_predicted_glosses = [None for _ in range(world_size)]
+        gathered_actual_glosses = [None for _ in range(world_size)]
+        
+        gathered_predicted_sentences = [None for _ in range(world_size)]
+        gathered_actual_sentences = [None for _ in range(world_size)]
+        
+        dist.all_gather_object(gathered_predicted_glosses, predicted_glosses)
+        dist.all_gather_object(gathered_actual_glosses, actual_glosses)
+        dist.all_gather_object(gathered_predicted_sentences, predicted_sentences)
+        dist.all_gather_object(gathered_actual_sentences, actual_sentences)
+
+        predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
+        actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
+        predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
+        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
+
         return (
-            recognition_losses / len(self.valid_dl),
-            translation_losses / len(self.valid_dl),
-            losses / len(self.valid_dl),
+            recognition_losses / size,
+            translation_losses / size,
+            losses / size,
             word_error_rate(predicted_glosses, actual_glosses) * 100.0,
             word_error_rate(predicted_sentences, actual_sentences) * 100.0,
         )
