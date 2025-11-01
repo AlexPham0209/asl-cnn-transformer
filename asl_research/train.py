@@ -120,9 +120,9 @@ class Trainer:
         ) = self._validate()
         
         if self.gpu_id == 0:
-            print(f"Starting Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
-            print(f"Starting Average Sentence Loss: {valid_translation_loss:4f}", end=" - ")
-            print(f"Starting Average Loss: {valid_loss:.4f}", end=" - ")
+            print(f"Starting Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
+            print(f"Starting Average Sentence Loss: {valid_translation_loss.item():4f}", end=" - ")
+            print(f"Starting Average Loss: {valid_loss.item():.4f}", end=" - ")
             print(f"Starting Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
             print(f"Starting Sentence WER: {valid_sentence_wer:.2f}%\n")
 
@@ -134,9 +134,9 @@ class Trainer:
             
             if self.gpu_id == 0:
                 print(f"Epoch Time: {total_time:.1f} seconds", end=" - ")
-                print(f"Training Average Gloss Loss: {train_recognition_loss:.4f}", end=" - ")
-                print(f"Training Average Sentence Loss: {train_translation_loss:.4f}", end=" - ")
-                print(f"Training Average Loss: {train_loss:.4f}\n")
+                print(f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - ")
+                print(f"Training Average Sentence Loss: {train_translation_loss.item():.4f}", end=" - ")
+                print(f"Training Average Loss: {train_loss.item():.4f}\n")
             
             if epoch % self.validate_every == 0:
                 start_time = time.time()
@@ -156,9 +156,9 @@ class Trainer:
                     print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
                     
                     # Showing metrics
-                    print(f"Valid Average Gloss Loss: {valid_recognition_loss:.4f}", end=" - ")
-                    print(f"Valid Average Sentence Loss: {valid_translation_loss:.4f}", end=" - ")
-                    print(f"Valid Average Loss: {valid_loss:.4f}", end=" - ")
+                    print(f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
+                    print(f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}", end=" - ")
+                    print(f"Valid Average Loss: {valid_loss.item():.4f}", end=" - ")
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
                 
@@ -224,20 +224,18 @@ class Trainer:
             self.optimizer.step()
 
         # Calculating global average loss among all devices
-        losses = torch.tensor(losses)
-        recognition_losses = torch.tensor(recognition_losses)
-        translation_losses = torch.tensor(translation_losses)
-        size = torch.tensor(len(self.train_dl))
+        losses = torch.tensor(losses).to(self.gpu_id)
+        recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
+        translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
 
         torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
-        torch.distributed.all_reduce(size, op=dist.ReduceOp.SUM)
 
         return (
-            recognition_losses / size,
-            translation_losses / size,
-            losses / size,
+            recognition_losses / len(self.train_dl.dataset),
+            translation_losses / len(self.valid_dl.dataset),
+            losses / len(self.train_dl.dataset),
         )
 
     def _validate(self, epoch: int = 1):
@@ -311,7 +309,7 @@ class Trainer:
             # Calculating the joint loss
             recognition_losses += recognition_loss.item() * videos.size(0)
             translation_losses += translation_loss.item() * videos.size(0)
-
+        
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
@@ -321,17 +319,15 @@ class Trainer:
         # print(f"Actual Sentences: {actual_sentences}")
 
         # Calculating global average loss among all devices
-        losses = torch.tensor(losses)
-        recognition_losses = torch.tensor(recognition_losses)
-        translation_losses = torch.tensor(translation_losses)
-        size = torch.tensor(len(self.valid_dl))
-       
+        losses = torch.tensor(losses).to(self.gpu_id)
+        recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
+        translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
+        
         torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
-        torch.distributed.all_reduce(size, op=dist.ReduceOp.SUM)
 
-        # Gather all calculated samples from 
+        # Gather all predicted samples with their targets in order to calculate global WER 
         world_size = dist.get_world_size()
         gathered_predicted_glosses = [None for _ in range(world_size)]
         gathered_actual_glosses = [None for _ in range(world_size)]
@@ -343,16 +339,22 @@ class Trainer:
         dist.all_gather_object(gathered_actual_glosses, actual_glosses)
         dist.all_gather_object(gathered_predicted_sentences, predicted_sentences)
         dist.all_gather_object(gathered_actual_sentences, actual_sentences)
-
+        
         predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
         actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
         actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
 
+        # print(f"Predicted Glosses: {predicted_glosses}")
+        # print(f"Actual Glosses: {actual_glosses}\n")
+        if self.gpu_id == 0:
+            print(f"Predicted Sentences: {predicted_sentences}")
+            print(f"Actual Sentences: {actual_sentences}")
+        
         return (
-            recognition_losses / size,
-            translation_losses / size,
-            losses / size,
+            recognition_losses / len(self.valid_dl.dataset),
+            translation_losses / len(self.valid_dl.dataset),
+            losses / len(self.valid_dl.dataset),
             word_error_rate(predicted_glosses, actual_glosses) * 100.0,
             word_error_rate(predicted_sentences, actual_sentences) * 100.0,
         )
@@ -374,7 +376,7 @@ class Trainer:
     def _save_best(self, epoch: int, metric: float):
         if metric > self.best_metric or self.gpu_id != 0:
             return
-
+        
         self.best_metric = metric
         print("New best model, saving...\n")
         torch.save(
@@ -432,6 +434,8 @@ def create_dataloaders(path: str, training_config: dict):
     train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
     test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
 
+    train = train.head(n=20)
+
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
@@ -439,7 +443,7 @@ def create_dataloaders(path: str, training_config: dict):
         num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
-        is_train=True,
+        is_train=False,
     )
 
     valid_set = PhoenixDataset(
@@ -465,8 +469,8 @@ def create_dataloaders(path: str, training_config: dict):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
-        batch_size=training_config["batch_size"],
-        num_workers=training_config["num_workers"],
+        batch_size=5,
+        num_workers=1,
         collate_fn=PhoenixDataset.collate_fn,
         pin_memory=True,
         sampler=DistributedSampler(train_set),
@@ -537,7 +541,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=valid_dl,
+        valid_dl=train_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,
