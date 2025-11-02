@@ -32,7 +32,7 @@ def convert_to_frames(path):
         print(f"Directory '{folder_name}' created successfully.")
     except FileExistsError:
         # print(f"Directory '{folder_name}' already exists.")
-        return
+        return os.path.basename(folder_path)
     
     video = cv2.VideoCapture(path)
     success, image = video.read()
@@ -189,12 +189,12 @@ def main():
         [key["text"].lower().replace(".", "").strip() for key in dev],
         "dev",
     )
-
+    
     create_dataset(
         video_path(test),
         [key["gloss"].upper().strip() for key in test],
         [key["text"].lower().replace(".", "").strip() for key in test],
-        "dev",
+        "test",
     )
 
     create_dataset(paths, glosses, texts, "dataset")

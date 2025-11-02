@@ -421,13 +421,20 @@ class Trainer:
 
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
-    df = pd.read_csv(os.path.join(path, "dataset.csv"))
-    train_size, valid_size, test_size = training_config["split"]
-    size = valid_size + test_size
-    test_size /= size
-    train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
-    test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
-
+    train, test, valid = None, None, None
+    
+    if training_config["use_already_split_sets"]:
+        train = pd.read_csv(os.path.join(path, "train.csv"))
+        valid = pd.read_csv(os.path.join(path, "dev.csv"))
+        test = pd.read_csv(os.path.join(path, "test.csv"))
+    else:
+        df = pd.read_csv(os.path.join(path, "dataset.csv"))
+        train_size, valid_size, test_size = training_config["split"]
+        size = valid_size + test_size
+        test_size /= size
+        train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
+        test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
+    
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
