@@ -19,8 +19,8 @@ training:
     
   # File path locations
   save_path: 'models'
-  file_name: 'best2'
-  load_path: 'models/best2.pt'
+  file_name: 'best3'
+  load_path: ''
   diagram_path: ''
 
   # Weights used for joint loss

@@ -38,7 +38,8 @@ test_size /= size
 train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
 test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
 
-print(train.head(n=10))
+print(train.head(n=20))
+print(test.head(n=20))
 
 # Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(

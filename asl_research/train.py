@@ -426,8 +426,8 @@ def create_dataloaders(path: str, training_config: dict):
     size = valid_size + test_size
     test_size /= size
     train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
-    test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
-    
+    test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
+
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
