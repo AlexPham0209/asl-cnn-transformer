@@ -427,9 +427,6 @@ def create_dataloaders(path: str, training_config: dict):
         train = pd.read_csv(os.path.join(path, "train.csv"))
         valid = pd.read_csv(os.path.join(path, "dev.csv"))
         test = pd.read_csv(os.path.join(path, "test.csv"))
-        print(train.head(n=10))
-        print(valid.head(n=10))
-        print(test.head(n=10))
     else:
         df = pd.read_csv(os.path.join(path, "dataset.csv"))
         train_size, valid_size, test_size = training_config["split"]
