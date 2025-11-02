@@ -96,7 +96,7 @@ def generate_padding_mask_from_lengths(
         return None
 
     max_length = torch.max(lengths, dim=-1)[0].item() if not max_length else max_length
-    
+
     lengths = lengths.unsqueeze(1)
     indices = torch.arange(0, max_length).unsqueeze(0).to(lengths.device)
 

@@ -24,15 +24,17 @@ def with_opencv(filename):
 
 
 def convert_to_frames(path):
-    video = cv2.VideoCapture(path)
     folder_name = os.path.basename(path).split(".")[0]
     folder_path = os.path.join(PROCESSED_VIDEO_PATH, folder_name)
+
     try:
         os.mkdir(folder_path)
         print(f"Directory '{folder_name}' created successfully.")
     except FileExistsError:
-        print(f"Directory '{folder_name}' already exists.")
-
+        # print(f"Directory '{folder_name}' already exists.")
+        return
+    
+    video = cv2.VideoCapture(path)
     success, image = video.read()
     count = 0
 
@@ -55,43 +57,7 @@ def video_path(set):
     )
 
 
-def main():
-    try:
-        os.mkdir(PROCESSED_VIDEO_PATH)
-        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' created successfully.")
-    except FileExistsError:
-        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' already exists.")
-
-    # Load dataset
-    print("Loading dataset...")
-    with gzip.open(
-        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb"
-    ) as f:
-        train = pickle.load(f)
-
-    with gzip.open(
-        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.dev.annotations_only.gzip"), "rb"
-    ) as f:
-        dev = pickle.load(f)
-
-    with gzip.open(
-        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.test.annotations_only.gzip"), "rb"
-    ) as f:
-        test = pickle.load(f)
-
-    # Getting gloss sequences and sentences from all samples
-    glosses = (
-        [key["gloss"].upper().strip() for key in train]
-        + [key["gloss"].upper().strip() for key in test]
-        + [key["gloss"].upper().strip() for key in dev]
-    )
-    texts = (
-        [key["text"].lower().replace(".", "").strip() for key in train]
-        + [key["text"].lower().replace(".", "").strip() for key in test]
-        + [key["text"].lower().replace(".", "").strip() for key in dev]
-    )
-
-    paths = video_path(train) + video_path(test) + video_path(dev)
+def create_dataset(paths, glosses, texts, name):
     df = pd.DataFrame({"paths": paths, "glosses": glosses, "texts": texts})
 
     # Removing duplicate rows
@@ -168,7 +134,70 @@ def main():
     with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:
         json.dump(vocab, f, indent=4)
 
-    df.to_csv(os.path.join(PROCESSED_PATH, "dataset.csv"), index=False)
+    df.to_csv(os.path.join(PROCESSED_PATH, f"{name}.csv"), index=False)
+
+
+def main():
+    try:
+        os.mkdir(PROCESSED_VIDEO_PATH)
+        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' created successfully.")
+    except FileExistsError:
+        print(f"Directory '{os.path.basename(PROCESSED_VIDEO_PATH)}' already exists.")
+
+    # Load dataset
+    print("Loading dataset...")
+    with gzip.open(
+        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.train.annotations_only.gzip"), "rb"
+    ) as f:
+        train = pickle.load(f)
+
+    with gzip.open(
+        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.dev.annotations_only.gzip"), "rb"
+    ) as f:
+        dev = pickle.load(f)
+
+    with gzip.open(
+        os.path.join(EXTERNAL_PATH, "phoenix14t.pami0.test.annotations_only.gzip"), "rb"
+    ) as f:
+        test = pickle.load(f)
+
+    # Getting gloss sequences and sentences from all samples
+    glosses = (
+        [key["gloss"].upper().strip() for key in train]
+        + [key["gloss"].upper().strip() for key in test]
+        + [key["gloss"].upper().strip() for key in dev]
+    )
+    texts = (
+        [key["text"].lower().replace(".", "").strip() for key in train]
+        + [key["text"].lower().replace(".", "").strip() for key in test]
+        + [key["text"].lower().replace(".", "").strip() for key in dev]
+    )
+
+    paths = video_path(train) + video_path(test) + video_path(dev)
+    df = pd.DataFrame({"paths": paths, "glosses": glosses, "texts": texts})
+
+    create_dataset(
+        video_path(train),
+        [key["gloss"].upper().strip() for key in train],
+        [key["text"].lower().replace(".", "").strip() for key in train],
+        "train",
+    )
+
+    create_dataset(
+        video_path(dev),
+        [key["gloss"].upper().strip() for key in dev],
+        [key["text"].lower().replace(".", "").strip() for key in dev],
+        "dev",
+    )
+
+    create_dataset(
+        video_path(test),
+        [key["gloss"].upper().strip() for key in test],
+        [key["text"].lower().replace(".", "").strip() for key in test],
+        "dev",
+    )
+
+    create_dataset(paths, glosses, texts, "dataset")
 
 
 if __name__ == "__main__":

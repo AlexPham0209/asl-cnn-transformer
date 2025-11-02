@@ -8,6 +8,7 @@ from asl_research.model.attention import MultiHeadAttention
 from asl_research.model.position_wise_feed_forward import PositionWiseFeedForward
 from asl_research.model.positional_embedding import PositionalEncoding
 
+
 class EncoderLayer(nn.Module):
     def __init__(
         self, d_model: int = 512, num_heads: int = 8, hidden_size: int = 1024, dropout: float = 0.1
@@ -18,7 +19,7 @@ class EncoderLayer(nn.Module):
         self.attention = MultiHeadAttention(d_model, num_heads)
         self.layer_norm_1 = nn.LayerNorm(d_model)
         self.dropout_1 = nn.Dropout(p=dropout)
-        
+
         # Position-Wise Feed Forward
         self.ff = PositionWiseFeedForward(d_model, hidden_size, dropout)
         self.layer_norm_2 = nn.LayerNorm(d_model)
@@ -37,7 +38,7 @@ class EncoderLayer(nn.Module):
         # Shape: (batch_size, sequence_size, d_model)
         x_norm = self.layer_norm_2(x)
         x = x + self.dropout_2(self.ff(x_norm))
-        
+
         return x
 
 
@@ -56,7 +57,7 @@ class TransformerEncoder(nn.Module):
         self.layers = nn.ModuleList(
             [EncoderLayer(d_model, num_heads, hidden_size, dropout) for _ in range(num_layers)]
         )
-    
+
     def forward(self, x: Tensor, mask: Optional[Tensor] = None):
         """
         Feeds input tensor through multiple layers of encoders which encodes the

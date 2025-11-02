@@ -105,7 +105,7 @@ for i in range(50):
     video_lengths = video_lengths.to(DEVICE)
 
     encoder_out, decoder_out = model.greedy_decode(videos, video_lengths, max_len=30)
-    
+
     actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
     predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 

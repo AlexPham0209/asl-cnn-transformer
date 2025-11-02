@@ -111,7 +111,7 @@ class SpatialEmbedding(nn.Module):
 
         for param in self.extractor.parameters():
             param.requires_grad = False
-        
+
         # Replacing final classification layer with our own depending on what model we choose
         match pretrained_model:
             case "efficientnet_b0":
@@ -124,7 +124,7 @@ class SpatialEmbedding(nn.Module):
                 )
             case "resnet50":
                 self.extractor.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
-        
+
         self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
         self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
         self.ff = nn.Linear(hidden_size, d_model)

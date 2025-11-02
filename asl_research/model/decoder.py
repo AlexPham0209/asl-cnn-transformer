@@ -64,13 +64,15 @@ class DecoderLayer(nn.Module):
             # Cross Attention
             # Shape: (batch_size, target_sequence_size, d_model)
             x_norm = self.layer_norm_2(x)
-            x = x + self.dropout_2(self.cross_attention(q=x_norm, k=encoded, v=encoded, mask=src_mask))
-            
+            x = x + self.dropout_2(
+                self.cross_attention(q=x_norm, k=encoded, v=encoded, mask=src_mask)
+            )
+
         # Position-Wise Feed Forward
         # Shape: (batch_size, target_sequence_size, d_model)
         x_norm = self.layer_norm_3(x)
         x = x + self.dropout_2(self.ff(x_norm))
-        
+
         return x
 
 

@@ -59,7 +59,7 @@ class PhoenixDataset(Dataset):
         self.random_masking = random_masking
 
         self.is_train = is_train
-    
+
         assert os.path.exists(self.dataset_path), (
             "Dataset directory doesn't exists (try running the download script)"
         )
