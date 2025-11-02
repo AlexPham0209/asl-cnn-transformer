@@ -88,7 +88,7 @@ class Trainer:
         self.diagram_path = training_config["diagram_path"]
         self.save_every = training_config["save_every"]
         self.validate_every = training_config["validate_every"]
-
+        
         # Set up loss weights
         self.recognition_weight = training_config["recognition_weight"]
         self.translation_weight = training_config["translation_weight"]
@@ -99,17 +99,17 @@ class Trainer:
 
         # Load checkpoint
         self._load_checkpoint()
-
+        
         # Convert model into DistributedDataParallel model using GPU {gpu_id}
         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
         self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
 
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"], zero_infinity=True).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"], label_smoothing=0.1).to(
             gpu_id
         )
-
+    
     def train(self):
         (
             valid_recognition_loss,
@@ -118,7 +118,7 @@ class Trainer:
             valid_gloss_wer,
             valid_sentence_wer,
         ) = self._validate()
-
+        
         if self.gpu_id == 0:
             print(f"Starting Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
             print(f"Starting Average Sentence Loss: {valid_translation_loss.item():4f}", end=" - ")
@@ -131,18 +131,13 @@ class Trainer:
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
             self.train_loss_history.append(train_loss)
             total_time = time.time() - start_time
-
+            
             if self.gpu_id == 0:
                 print(f"Epoch Time: {total_time:.1f} seconds", end=" - ")
-                print(
-                    f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - "
-                )
-                print(
-                    f"Training Average Sentence Loss: {train_translation_loss.item():.4f}",
-                    end=" - ",
-                )
+                print(f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - ")
+                print(f"Training Average Sentence Loss: {train_translation_loss.item():.4f}", end=" - ")
                 print(f"Training Average Loss: {train_loss.item():.4f}\n")
-
+            
             if epoch % self.validate_every == 0:
                 start_time = time.time()
                 (
@@ -153,40 +148,35 @@ class Trainer:
                     valid_sentence_wer,
                 ) = self._validate(epoch)
                 total_time = time.time() - start_time
-
+                    
                 # Saving model
                 self.valid_loss_history.append(valid_loss)
 
                 if self.gpu_id == 0:
                     print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
-
+                    
                     # Showing metrics
-                    print(
-                        f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - "
-                    )
-                    print(
-                        f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}",
-                        end=" - ",
-                    )
+                    print(f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
+                    print(f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}", end=" - ")
                     print(f"Valid Average Loss: {valid_loss.item():.4f}", end=" - ")
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
-
+                
                 self._save_best(epoch, valid_sentence_wer)
                 self.scheduler.step(valid_loss)
-
+            
             self._save_checkpoint(epoch)
-
+            
             # Step scheduler and early stopping
-
+            
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
-
+    
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
         self.train_dl.sampler.set_epoch(epoch)
-
+        
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -225,7 +215,7 @@ class Trainer:
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
-            loss.backward()
+            loss.backward() 
 
             # Clip gradient by norm
             nn.utils.clip_grad_norm_(
@@ -270,7 +260,7 @@ class Trainer:
 
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
-
+    
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
 
@@ -289,19 +279,19 @@ class Trainer:
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-
+            
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
 
             actual_sentences.extend(actual_sentence)
             predicted_sentences.extend(predicted_sentence)
-
+        
             with torch.no_grad():
                 encoder_out, decoder_out, lengths = self.model(
                     videos, sentences[:, :-1], video_lengths
                 )
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
@@ -319,7 +309,7 @@ class Trainer:
             # Calculating the joint loss
             recognition_losses += recognition_loss.item() * videos.size(0)
             translation_losses += translation_loss.item() * videos.size(0)
-
+            
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
@@ -332,29 +322,29 @@ class Trainer:
         losses = torch.tensor(losses).to(self.gpu_id)
         recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
         translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
-
+        
         torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
 
-        # Gather all predicted samples with their targets in order to calculate global WER
+        # Gather all predicted samples with their targets in order to calculate global WER 
         world_size = dist.get_world_size()
         gathered_predicted_glosses = [None for _ in range(world_size)]
         gathered_actual_glosses = [None for _ in range(world_size)]
-
+        
         gathered_predicted_sentences = [None for _ in range(world_size)]
         gathered_actual_sentences = [None for _ in range(world_size)]
-
+        
         dist.all_gather_object(gathered_predicted_glosses, predicted_glosses)
         dist.all_gather_object(gathered_actual_glosses, actual_glosses)
         dist.all_gather_object(gathered_predicted_sentences, predicted_sentences)
         dist.all_gather_object(gathered_actual_sentences, actual_sentences)
-
+        
         predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
         actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
-        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
-
+        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))   
+        
         return (
             recognition_losses / len(self.valid_dl.dataset),
             translation_losses / len(self.valid_dl.dataset),
@@ -380,7 +370,7 @@ class Trainer:
     def _save_best(self, epoch: int, metric: float):
         if metric > self.best_metric or self.gpu_id != 0:
             return
-
+        
         self.best_metric = metric
         print("New best model, saving...\n")
         torch.save(
@@ -556,7 +546,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer.train()
     destroy_process_group()
-
+    
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:

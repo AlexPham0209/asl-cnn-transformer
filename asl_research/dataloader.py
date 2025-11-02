@@ -16,6 +16,7 @@ from torchvision.transforms import (
     Normalize,
     GaussianBlur,
     CenterCrop,
+    RandomHorizontalFlip
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
@@ -92,6 +93,7 @@ class PhoenixDataset(Dataset):
                 Resize((256, 256)),
                 # RandomRotation(degrees=7.5),
                 RandomCrop(target_size),
+                RandomHorizontalFlip(p=0.5),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
                 # ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
