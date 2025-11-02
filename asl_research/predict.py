@@ -32,10 +32,13 @@ model_config = config["model"]
 training_config = config["training"]
 
 df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
-train, test = train_test_split(df, train_size=0.005, random_state=training_config["seed"])
-test, valid = train_test_split(df, test_size=0.5, random_state=training_config["seed"])
+train_size, valid_size, test_size = training_config["split"]
+size = valid_size + test_size
+test_size /= size
+train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
+test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
 
-print(train.head(n=5))
+print(train.head(n=10))
 
 # Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
@@ -63,7 +66,7 @@ model = ASLModel(
 
 dataloader = DataLoader(
     dataset,
-    batch_size=2,
+    batch_size=1,
     num_workers=0,
     shuffle=True,
     collate_fn=PhoenixDataset.collate_fn,
@@ -90,7 +93,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(20):
+for i in range(50):
     videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(
         iter(dataloader)
     )
