@@ -109,7 +109,7 @@ def create_dataset(paths, glosses, texts, name):
     df["processed_paths"] = video_paths
 
     # Filter outliers outside of 3 standard deviations
-    df = df[np.abs(stats.zscore(df["frames"])) < 3]
+    # df = df[np.abs(stats.zscore(df["frames"])) < 3]
 
     print("Creating vocabulary...")
     # Create vocabulary for gloss sequences and words
