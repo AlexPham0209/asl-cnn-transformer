@@ -344,6 +344,12 @@ class Trainer:
         actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
         actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))   
+
+        if self.gpu_id == 0:
+            print(f"Predicted Glosses: {predicted_glosses}\n")
+            print(f"Actual Glosses: {actual_glosses}\n")
+            print(f"Predicted Sentences: {predicted_sentences}\n")
+            print(f"Actual Sentences: {actual_sentences}\n")
         
         return (
             recognition_losses / len(self.valid_dl.dataset),
@@ -434,6 +440,8 @@ def create_dataloaders(path: str, training_config: dict):
         test_size /= size
         train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
         test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
+
+    train = train.head(n=8)
     
     train_set = PhoenixDataset(
         df=train,
@@ -450,6 +458,8 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
         is_train=False,
     )
 
@@ -458,6 +468,8 @@ def create_dataloaders(path: str, training_config: dict):
         root_dir=PROCESSED_PATH,
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
         is_train=False,
     )
 
@@ -536,7 +548,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=valid_dl,
+        valid_dl=train_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,

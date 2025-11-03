@@ -42,14 +42,17 @@ train = pd.read_csv(os.path.join(PROCESSED_PATH, "train.csv"))
 valid = pd.read_csv(os.path.join(PROCESSED_PATH, "dev.csv"))
 test = pd.read_csv(os.path.join(PROCESSED_PATH, "test.csv"))
 
+train = train.head(n=8)
+
 # Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
     df=train,
     root_dir=PROCESSED_PATH,
-    num_frames=training_config["num_frames"],
-    target_size=(224, 224),
+    sampling_ratio=training_config["sampling_ratio"],
+    random_subsampling=training_config["random_sampling"],
+    random_masking=training_config["random_masking"],
+    masking_ratio=training_config["masking_ratio"],
     is_train=False,
-    random_subsampling=2,
 )
 
 gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
@@ -68,8 +71,8 @@ model = ASLModel(
 
 dataloader = DataLoader(
     dataset,
-    batch_size=1,
-    num_workers=0,
+    batch_size=training_config["batch_size"],
+    num_workers=training_config["num_workers"],
     shuffle=True,
     collate_fn=PhoenixDataset.collate_fn,
 )
@@ -95,7 +98,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(50):
+for i in range(8):
     videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(
         iter(dataloader)
     )
@@ -105,7 +108,7 @@ for i in range(50):
     sentences = sentences.to(DEVICE)
     video_lengths = video_lengths.to(DEVICE)
 
-    encoder_out, decoder_out = model.greedy_decode(videos, video_lengths, max_len=30)
+    encoder_out, decoder_out = model.greedy_decode(videos, video_lengths, max_len=torch.max(sentence_lengths).item())
 
     actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
     predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
