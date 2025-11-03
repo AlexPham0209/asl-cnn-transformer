@@ -125,7 +125,7 @@ class SpatialEmbedding(nn.Module):
             case "resnet50":
                 self.extractor.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
 
-        self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
+        self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=5)
         self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
         self.ff = nn.Linear(hidden_size, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
@@ -150,8 +150,8 @@ class SpatialEmbedding(nn.Module):
         # Using pretrained weights
         x = self.extractor(x).to(x.device)
         x = x.reshape(N, T, -1)
-        x, lengths = self.conv_1(x, lengths)
-        x, lengths = self.conv_2(x, lengths)
+        # x, lengths = self.conv_1(x, lengths)
+        # x, lengths = self.conv_2(x, lengths)
 
         mask = generate_padding_mask_from_lengths(lengths).to(lengths.device)
         x = self.ff(x)

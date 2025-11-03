@@ -438,8 +438,6 @@ def create_dataloaders(path: str, training_config: dict):
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
-        target_size=(224, 224),
-        num_frames=training_config["num_frames"],
         sampling_ratio=training_config["sampling_ratio"],
         random_subsampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
@@ -450,9 +448,7 @@ def create_dataloaders(path: str, training_config: dict):
     valid_set = PhoenixDataset(
         df=valid,
         root_dir=PROCESSED_PATH,
-        target_size=(224, 224),
         sampling_ratio=training_config["sampling_ratio"],
-        num_frames=training_config["num_frames"],
         random_subsampling=training_config["random_sampling"],
         is_train=False,
     )
@@ -460,9 +456,7 @@ def create_dataloaders(path: str, training_config: dict):
     test_set = PhoenixDataset(
         df=test,
         root_dir=PROCESSED_PATH,
-        target_size=(224, 224),
         sampling_ratio=training_config["sampling_ratio"],
-        num_frames=training_config["num_frames"],
         random_subsampling=training_config["random_sampling"],
         is_train=False,
     )

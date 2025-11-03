@@ -39,8 +39,6 @@ class PhoenixDataset(Dataset):
         self,
         df: pd.DataFrame,
         root_dir: str,
-        target_size: tuple = (224, 224),
-        num_frames: int | list = 120,
         sampling_ratio: int = 2,
         masking_ratio: float = 0.8,
         random_subsampling: bool = True,
@@ -53,7 +51,6 @@ class PhoenixDataset(Dataset):
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
 
-        self.num_frames = num_frames
         self.sampling_ratio = sampling_ratio
         self.random_sampling = random_subsampling
         self.masking_ratio = masking_ratio
@@ -91,19 +88,16 @@ class PhoenixDataset(Dataset):
         self.train_transform = Compose(
             [
                 Resize((256, 256)),
-                # RandomRotation(degrees=7.5),
-                RandomCrop(target_size),
-                RandomHorizontalFlip(p=0.5),
+                RandomCrop((224, 224)),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
-                # ColorJitter(brightness=(0.5, 1.0), contrast=(0.75, 1.0), saturation=0.25, hue=0.1),
             ]
         )
 
         self.valid_transform = Compose(
             [
                 Resize((256, 256)),
-                CenterCrop(target_size),
+                CenterCrop((224, 224)),
                 Lambda(self.normalize_color),
                 Normalize(mean, std),
             ]

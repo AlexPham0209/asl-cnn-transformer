@@ -36,7 +36,7 @@ def test_dataset_split():
     train_set, valid_set, test_set = random_split(
         dataset=dataset, lengths=[0.8, 0.1, 0.1], generator=generator
     )
-
+    
     train_dl = DataLoader(train_set, batch_size=16, shuffle=True)
     valid_dl = DataLoader(valid_set, batch_size=16, shuffle=True)
     test_dl = DataLoader(test_set, batch_size=16, shuffle=True)
@@ -49,7 +49,7 @@ def test_dataset_split():
 if __name__ == "__main__":
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     df = pd.read_csv(os.path.join("data", "processed", "phoenixweather2014t", "dataset.csv"))
-    dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=True)
+    dataset = PhoenixDataset(df=df, root_dir="data\\processed\\phoenixweather2014t", is_train=True, masking_ratio=0.9)
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=PhoenixDataset.collate_fn)
     
     for i in range(10):
