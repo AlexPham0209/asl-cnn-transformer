@@ -31,19 +31,20 @@ with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
 model_config = config["model"]
 training_config = config["training"]
 
-df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
-train_size, valid_size, test_size = training_config["split"]
-size = valid_size + test_size
-test_size /= size
-train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
-test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
+# df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
+# train_size, valid_size, test_size = training_config["split"]
+# size = valid_size + test_size
+# test_size /= size
+# train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
+# test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
 
-print(train.head(n=20))
-print(test.head(n=20))
+train = pd.read_csv(os.path.join(PROCESSED_PATH, "train.csv"))
+valid = pd.read_csv(os.path.join(PROCESSED_PATH, "dev.csv"))
+test = pd.read_csv(os.path.join(PROCESSED_PATH, "test.csv"))
 
 # Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    df=test,
+    df=train,
     root_dir=PROCESSED_PATH,
     num_frames=training_config["num_frames"],
     target_size=(224, 224),

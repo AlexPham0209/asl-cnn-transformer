@@ -106,7 +106,7 @@ class Trainer:
 
         # Creating the losses used for recognition and translation
         self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"], zero_infinity=True).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"], label_smoothing=0.1).to(
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
             gpu_id
         )
     
@@ -162,7 +162,7 @@ class Trainer:
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
                 
-                self._save_best(epoch, valid_sentence_wer)
+                self._save_best(epoch, valid_gloss_wer)
                 self.scheduler.step(valid_loss)
             
             self._save_checkpoint(epoch)
@@ -202,7 +202,7 @@ class Trainer:
                 self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
-
+            
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -272,7 +272,7 @@ class Trainer:
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-
+            
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
@@ -444,7 +444,7 @@ def create_dataloaders(path: str, training_config: dict):
         random_subsampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
         masking_ratio=training_config["masking_ratio"],
-        is_train=True,
+        is_train=False,
     )
 
     valid_set = PhoenixDataset(
@@ -532,7 +532,7 @@ def start_training(rank: int, world_size: int, config: dict):
         weight_decay=float(training_config["weight_decay"]),
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min", factor=0.8, patience=4, min_lr=1e-6
+        optimizer, "min", factor=0.8, patience=8, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]

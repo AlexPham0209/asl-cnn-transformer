@@ -1,6 +1,6 @@
 model:
-  num_encoders: 3
-  num_decoders: 3
+  num_encoders: 2
+  num_decoders: 2
   pretrained_embedding: "efficientnet_b0"
 
   d_model: 512
@@ -13,13 +13,13 @@ training:
   epochs: 200
   batch_size: 8
   lr: 1e-3
-  weight_decay: 5e-4
+  weight_decay: 0
   save_every: 25
   validate_every: 1
 
   # File path locations
   save_path: 'models'
-  file_name: 'best3'
+  file_name: 'test'
   load_path: ''
   diagram_path: ''
 
@@ -43,16 +43,16 @@ training:
   max_norm: 1.0
     
   # Misc.
-  num_workers: 4
+  num_workers: 1
   
   # Dataset
   num_frames: 30
   sampling_ratio: 2
-  masking_ratio: 0.8
+  masking_ratio: 0.9
   random_sampling: True
   random_masking: True
   
 
 testing:
-  load_path: 'models/best2.pt'
+  load_path: 'models/best3.pt'
   beam_search: false
