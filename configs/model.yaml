@@ -53,5 +53,5 @@ training:
   
 
 testing:
-  load_path: 'models/test.pt'
+  load_path: 'models/epoch_200.pt'
   beam_search: false
