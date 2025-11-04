@@ -19,7 +19,7 @@ training:
 
   # File path locations
   save_path: 'models'
-  file_name: 'test'
+  file_name: 'test2'
   load_path: ''
   diagram_path: ''
 
@@ -53,5 +53,5 @@ training:
   
 
 testing:
-  load_path: 'models/epoch_200.pt'
+  load_path: 'models/best3.pt'
   beam_search: false

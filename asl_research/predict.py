@@ -30,6 +30,7 @@ with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
 
 model_config = config["model"]
 training_config = config["training"]
+testing_config = config["testing"]
 
 # df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
 # train_size, valid_size, test_size = training_config["split"]
@@ -42,11 +43,9 @@ train = pd.read_csv(os.path.join(PROCESSED_PATH, "train.csv"))
 valid = pd.read_csv(os.path.join(PROCESSED_PATH, "dev.csv"))
 test = pd.read_csv(os.path.join(PROCESSED_PATH, "test.csv"))
 
-train = train.head(n=8)
-
 # Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    df=train,
+    df=test,
     root_dir=PROCESSED_PATH,
     sampling_ratio=training_config["sampling_ratio"],
     random_subsampling=training_config["random_sampling"],
@@ -71,13 +70,13 @@ model = ASLModel(
 
 dataloader = DataLoader(
     dataset,
-    batch_size=training_config["batch_size"],
+    batch_size=1,
     num_workers=training_config["num_workers"],
     shuffle=True,
     collate_fn=PhoenixDataset.collate_fn,
 )
 
-load_path = training_config["load_path"]
+load_path = testing_config["load_path"]
 ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
 cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
@@ -98,7 +97,7 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(8):
+for i in range(50):
     videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(
         iter(dataloader)
     )
