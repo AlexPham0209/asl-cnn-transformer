@@ -1,27 +1,27 @@
 model:
-  num_encoders: 2
-  num_decoders: 2
-  pretrained_embedding: "efficientnet_b0"
+  num_encoders: 3
+  num_decoders: 3
+  pretrained_embedding: "resnet50"
 
   d_model: 512
   hidden_size: 1024
   num_heads: 8
-  dropout: 0.1
+  dropout: 0.3
 
 training:
   # Basic hyperparameters
   epochs: 200
-  batch_size: 2
+  batch_size: 8
   lr: 1e-3
-  weight_decay: 0
+  weight_decay: 1e-4
   save_every: 25
   validate_every: 1
 
   # File path locations
   save_path: 'models'
-  file_name: 'test2'
+  file_name: 'best_resnet'
   load_path: ''
-  diagram_path: ''
+  diagram_path: 'reports/figures'
 
   # Weights used for joint loss
   recognition_weight: 1.0
@@ -43,13 +43,13 @@ training:
   max_norm: 1.0
     
   # Misc.
-  num_workers: 1
+  num_workers: 4
   
   # Dataset
   sampling_ratio: 2
   masking_ratio: 0.9
   random_sampling: True
-  random_masking: False
+  random_masking: True
   
 
 testing:

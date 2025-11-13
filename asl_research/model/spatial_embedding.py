@@ -123,7 +123,7 @@ class SpatialEmbedding(nn.Module):
                     self.extractor.classifier[1].in_features, hidden_size
                 )
             case "resnet50":
-                self.extractor.fc = nn.Linear(self.conv.fc.in_features, hidden_size)
+                self.extractor.fc = nn.Linear(self.extractor.fc.in_features, hidden_size)
 
         self.conv_1 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=5)
         # self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)

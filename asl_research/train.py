@@ -129,7 +129,7 @@ class Trainer:
         for epoch in range(self.curr_epoch, self.epochs + 1):
             start_time = time.time()
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
-            self.train_loss_history.append(train_loss)
+            self.train_loss_history.append((epoch, train_loss))
             total_time = time.time() - start_time
             
             if self.gpu_id == 0:
@@ -150,7 +150,7 @@ class Trainer:
                 total_time = time.time() - start_time
                     
                 # Saving model
-                self.valid_loss_history.append(valid_loss)
+                self.valid_loss_history.append((epoch, valid_loss))
 
                 if self.gpu_id == 0:
                     print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
@@ -172,6 +172,7 @@ class Trainer:
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
+        self._save_diagrams()
     
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
@@ -345,11 +346,11 @@ class Trainer:
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
         actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))   
 
-        if self.gpu_id == 0:
-            print(f"Predicted Glosses: {predicted_glosses}\n")
-            print(f"Actual Glosses: {actual_glosses}\n")
-            print(f"Predicted Sentences: {predicted_sentences}\n")
-            print(f"Actual Sentences: {actual_sentences}\n")
+        # if self.gpu_id == 0:
+        #     print(f"Predicted Glosses: {predicted_glosses}\n")
+        #     print(f"Actual Glosses: {actual_glosses}\n")
+        #     print(f"Predicted Sentences: {predicted_sentences}\n")
+        #     print(f"Actual Sentences: {actual_sentences}\n")
         
         return (
             recognition_losses / len(self.valid_dl.dataset),
@@ -418,12 +419,12 @@ class Trainer:
         plt.xlabel("Epoch")
 
         plt.locator_params(axis="x", integer=True, tight=True)
-        plt.plot(self.train_loss_history, label="train")
-        plt.plot(self.valid_loss_history, label="valid")
+        plt.plot(*zip(*self.train_loss_history), label="train")
+        plt.plot(*zip(*self.valid_loss_history), label="valid")
         plt.legend(["train", "valid"], loc="upper left")
-
+        
         plt.savefig(os.path.join(self.diagram_path, "figure.png"))
-
+        
 
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
@@ -440,8 +441,6 @@ def create_dataloaders(path: str, training_config: dict):
         test_size /= size
         train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
         test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
-
-    train = train.head(n=8)
     
     train_set = PhoenixDataset(
         df=train,
@@ -450,7 +449,7 @@ def create_dataloaders(path: str, training_config: dict):
         random_subsampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
         masking_ratio=training_config["masking_ratio"],
-        is_train=False,
+        is_train=True,
     )
 
     valid_set = PhoenixDataset(
@@ -538,7 +537,7 @@ def start_training(rank: int, world_size: int, config: dict):
         weight_decay=float(training_config["weight_decay"]),
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "min", factor=0.8, patience=8, min_lr=1e-6
+        optimizer, "min", factor=0.8, patience=2, min_lr=1e-6
     )
     early_stopping = EarlyStopping(
         patience=training_config["patience"], delta=training_config["delta"]
@@ -548,7 +547,7 @@ def start_training(rank: int, world_size: int, config: dict):
         model=model,
         vocab=vocab,
         train_dl=train_dl,
-        valid_dl=train_dl,
+        valid_dl=valid_dl,
         test_dl=test_dl,
         optimizer=optimizer,
         scheduler=scheduler,
