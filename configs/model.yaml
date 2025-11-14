@@ -1,11 +1,11 @@
 model:
   num_encoders: 3
   num_decoders: 3
-  pretrained_embedding: "resnet50"
+  pretrained_embedding: "efficientnet_b0"
 
-  d_model: 512
-  hidden_size: 1024
-  num_heads: 8
+  d_model: 256
+  hidden_size: 512
+  num_heads: 4
   dropout: 0.3
 
 training:
@@ -19,7 +19,7 @@ training:
 
   # File path locations
   save_path: 'models'
-  file_name: 'best_resnet'
+  file_name: 'best4'
   load_path: ''
   diagram_path: 'reports/figures'
 
@@ -49,9 +49,9 @@ training:
   sampling_ratio: 2
   masking_ratio: 0.9
   random_sampling: True
-  random_masking: True
+  random_masking: False
   
 
 testing:
-  load_path: 'models/best3.pt'
+  load_path: 'models/best_resnet.pt'
   beam_search: false

@@ -46,7 +46,7 @@ class ASLModel(nn.Module):
         # Encoder
         self.src_embedding = SpatialEmbedding(
             d_model=d_model,
-            hidden_size=1024,
+            hidden_size=512,
             dropout=dropout,
             pretrained_model=pretrained_embedding,
         )
@@ -54,7 +54,7 @@ class ASLModel(nn.Module):
             num_layers=num_encoders,
             d_model=d_model,
             num_heads=num_heads,
-            hidden_size=2048,
+            hidden_size=1024,
             dropout=dropout,
         )
         self.ff_1 = nn.Linear(d_model, len(self.gloss_to_idx))
@@ -65,7 +65,7 @@ class ASLModel(nn.Module):
             num_layers=num_decoders,
             d_model=d_model,
             num_heads=num_heads,
-            hidden_size=2048,
+            hidden_size=1024,
             dropout=dropout,
         )
         self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
