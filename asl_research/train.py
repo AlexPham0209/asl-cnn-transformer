@@ -59,12 +59,14 @@ class Trainer:
         optimizer: Optimizer,
         scheduler: LRScheduler,
         early_stopping: EarlyStopping,
-        training_config: dict,
+        config: dict,
         gpu_id: int,
     ):
         self.model = model.to(gpu_id)
         self.gpu_id = gpu_id
-        self.training_config = training_config
+        self.config = config
+        self.model_config = config["model"]
+        self.training_config = config["training"]
 
         # Vocab
         self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = vocab
@@ -79,19 +81,19 @@ class Trainer:
         self.train_loss_history = []
         self.valid_loss_history = []
 
-        self.epochs = training_config["epochs"]
+        self.epochs = self.training_config["epochs"]
         self.curr_epoch = 1
 
-        self.save_path = training_config["save_path"]
-        self.load_path = training_config["load_path"]
-        self.file_name = training_config["file_name"]
-        self.diagram_path = training_config["diagram_path"]
-        self.save_every = training_config["save_every"]
-        self.validate_every = training_config["validate_every"]
+        self.save_path = self.training_config["save_path"]
+        self.load_path = self.training_config["load_path"]
+        self.file_name = self.training_config["file_name"]
+        self.diagram_path = self.training_config["diagram_path"]
+        self.save_every = self.training_config["save_every"]
+        self.validate_every = self.training_config["validate_every"]
         
         # Set up loss weights
-        self.recognition_weight = training_config["recognition_weight"]
-        self.translation_weight = training_config["translation_weight"]
+        self.recognition_weight = self.training_config["recognition_weight"]
+        self.translation_weight = self.training_config["translation_weight"]
 
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -111,6 +113,7 @@ class Trainer:
         )
     
     def train(self):
+        self._save_diagrams()
         (
             valid_recognition_loss,
             valid_translation_loss,
@@ -162,7 +165,7 @@ class Trainer:
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
                 
-                self._save_best(epoch, valid_gloss_wer)
+                self._save_best(epoch, valid_sentence_wer)
                 self.scheduler.step(valid_loss)
             
             self._save_checkpoint(epoch)
@@ -388,6 +391,7 @@ class Trainer:
                 "best_metric": self.best_metric,
                 "train_loss_history": self.train_loss_history,
                 "valid_loss_history": self.valid_loss_history,
+                "config": self.config,
             },
             os.path.join(self.save_path, f"{self.file_name}.pt"),
         )
@@ -552,7 +556,7 @@ def start_training(rank: int, world_size: int, config: dict):
         optimizer=optimizer,
         scheduler=scheduler,
         early_stopping=early_stopping,
-        training_config=training_config,
+        config=config,
         gpu_id=rank,
     )
 

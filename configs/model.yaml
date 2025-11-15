@@ -3,24 +3,24 @@ model:
   num_decoders: 3
   pretrained_embedding: "efficientnet_b0"
 
-  d_model: 256
-  hidden_size: 512
-  num_heads: 4
+  d_model: 512
+  hidden_size: 1024
+  num_heads: 8
   dropout: 0.3
 
 training:
   # Basic hyperparameters
-  epochs: 200
+  epochs: 100
   batch_size: 8
   lr: 1e-3
-  weight_decay: 1e-4
+  weight_decay: 5e-4
   save_every: 25
   validate_every: 1
 
   # File path locations
   save_path: 'models'
-  file_name: 'best4'
-  load_path: ''
+  file_name: 'best5'
+  load_path: 'models/best5.pt'
   diagram_path: 'reports/figures'
 
   # Weights used for joint loss
@@ -49,9 +49,9 @@ training:
   sampling_ratio: 2
   masking_ratio: 0.9
   random_sampling: True
-  random_masking: False
+  random_masking: True
   
 
 testing:
-  load_path: 'models/best_resnet.pt'
+  load_path: 'models/epoch_75.pt'
   beam_search: false
