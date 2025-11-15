@@ -165,7 +165,7 @@ class Trainer:
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
                 
-                self._save_best(epoch, valid_sentence_wer)
+                self._save_best(epoch, valid_gloss_wer)
                 self.scheduler.step(valid_loss)
             
             self._save_checkpoint(epoch)
@@ -422,9 +422,14 @@ class Trainer:
         plt.ylabel("Loss")
         plt.xlabel("Epoch")
 
+        train_epochs, train_losses = zip(*self.train_loss_history)
+        valid_epochs, valid_losses = zip(*self.valid_loss_history)
+        train_losses = [t.item() for t in train_losses]
+        valid_losses = [t.item() for t in valid_losses]
+        
         plt.locator_params(axis="x", integer=True, tight=True)
-        plt.plot(*zip(*self.train_loss_history), label="train")
-        plt.plot(*zip(*self.valid_loss_history), label="valid")
+        plt.plot(train_epochs, train_losses, label="train")
+        plt.plot(valid_epochs, valid_losses, label="valid")
         plt.legend(["train", "valid"], loc="upper left")
         
         plt.savefig(os.path.join(self.diagram_path, "figure.png"))

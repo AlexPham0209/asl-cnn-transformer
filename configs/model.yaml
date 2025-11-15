@@ -20,7 +20,7 @@ training:
   # File path locations
   save_path: 'models'
   file_name: 'best5'
-  load_path: 'models/best5.pt'
+  load_path: 'models/epoch_75.pt'
   diagram_path: 'reports/figures'
 
   # Weights used for joint loss
