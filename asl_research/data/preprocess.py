@@ -33,15 +33,14 @@ def convert_to_frames(path):
     except FileExistsError:
         # print(f"Directory '{folder_name}' already exists.")
         return os.path.basename(folder_path)
-    
+
     video = cv2.VideoCapture(path)
     success, image = video.read()
     count = 0
 
     while success:
-        cv2.imwrite(
-            os.path.join(folder_path, f"frame_{count}.jpg"), image
-        )  # save frame as JPEG file
+        cv2.imwrite(os.path.join(folder_path, f"frame_{count}.jpg"), image)
+        # save frame as JPEG file
         success, image = video.read()
         count += 1
 
@@ -189,7 +188,7 @@ def main():
         [key["text"].lower().replace(".", "").strip() for key in dev],
         "dev",
     )
-    
+
     create_dataset(
         video_path(test),
         [key["gloss"].upper().strip() for key in test],

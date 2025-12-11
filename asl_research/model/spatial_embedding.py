@@ -11,6 +11,7 @@ from torchvision.models import (
     EfficientNet_B4_Weights,
 )
 from torch.nn.utils.rnn import pad_sequence
+from pytorchvideo.models.hub import i3d_r50
 
 
 from asl_research.utils.utils import generate_padding_mask_from_lengths

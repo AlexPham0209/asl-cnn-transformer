@@ -90,7 +90,7 @@ class Trainer:
         self.diagram_path = self.training_config["diagram_path"]
         self.save_every = self.training_config["save_every"]
         self.validate_every = self.training_config["validate_every"]
-        
+
         # Set up loss weights
         self.recognition_weight = self.training_config["recognition_weight"]
         self.translation_weight = self.training_config["translation_weight"]
@@ -101,7 +101,7 @@ class Trainer:
 
         # Load checkpoint
         self._load_checkpoint()
-        
+
         # Convert model into DistributedDataParallel model using GPU {gpu_id}
         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
         self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
@@ -111,7 +111,7 @@ class Trainer:
         self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
             gpu_id
         )
-    
+
     def train(self):
         self._save_diagrams()
         (
@@ -121,7 +121,7 @@ class Trainer:
             valid_gloss_wer,
             valid_sentence_wer,
         ) = self._validate()
-        
+
         if self.gpu_id == 0:
             print(f"Starting Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
             print(f"Starting Average Sentence Loss: {valid_translation_loss.item():4f}", end=" - ")
@@ -134,13 +134,18 @@ class Trainer:
             train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
             self.train_loss_history.append((epoch, train_loss))
             total_time = time.time() - start_time
-            
+
             if self.gpu_id == 0:
                 print(f"Epoch Time: {total_time:.1f} seconds", end=" - ")
-                print(f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - ")
-                print(f"Training Average Sentence Loss: {train_translation_loss.item():.4f}", end=" - ")
+                print(
+                    f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - "
+                )
+                print(
+                    f"Training Average Sentence Loss: {train_translation_loss.item():.4f}",
+                    end=" - ",
+                )
                 print(f"Training Average Loss: {train_loss.item():.4f}\n")
-            
+
             if epoch % self.validate_every == 0:
                 start_time = time.time()
                 (
@@ -151,36 +156,41 @@ class Trainer:
                     valid_sentence_wer,
                 ) = self._validate(epoch)
                 total_time = time.time() - start_time
-                    
+
                 # Saving model
                 self.valid_loss_history.append((epoch, valid_loss))
 
                 if self.gpu_id == 0:
                     print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
-                    
+
                     # Showing metrics
-                    print(f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
-                    print(f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}", end=" - ")
+                    print(
+                        f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - "
+                    )
+                    print(
+                        f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}",
+                        end=" - ",
+                    )
                     print(f"Valid Average Loss: {valid_loss.item():.4f}", end=" - ")
                     print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
                     print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
-                
+
                 self._save_best(epoch, valid_gloss_wer)
                 self.scheduler.step(valid_loss)
-            
+
             self._save_checkpoint(epoch)
-            
+
             # Step scheduler and early stopping
-            
+
             # if self.early_stopping.early_stop(valid_loss):
             #     print("Early stopping")
             #     break
         self._save_diagrams()
-    
+
     def _train_epoch(self, epoch: int = 1):
         self.model.train()
         self.train_dl.sampler.set_epoch(epoch)
-        
+
         losses = 0.0
         recognition_losses = 0.0
         translation_losses = 0.0
@@ -206,7 +216,7 @@ class Trainer:
                 self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
                 * self.recognition_weight
             )
-            
+
             # Decoder loss
             actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
@@ -219,7 +229,7 @@ class Trainer:
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
-            loss.backward() 
+            loss.backward()
 
             # Clip gradient by norm
             nn.utils.clip_grad_norm_(
@@ -264,7 +274,7 @@ class Trainer:
 
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
-    
+
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
 
@@ -276,26 +286,26 @@ class Trainer:
             # Convert output tensors into strings
             actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
             predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
-            
+
             actual_sentence = decode_sentences(
                 sentences.tolist(), self.word_to_idx, self.idx_to_word
             )
             predicted_sentence = decode_sentences(
                 decoder_out.tolist(), self.word_to_idx, self.idx_to_word
             )
-            
+
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
             predicted_glosses.extend(predicted_gloss)
 
             actual_sentences.extend(actual_sentence)
             predicted_sentences.extend(predicted_sentence)
-        
+
             with torch.no_grad():
                 encoder_out, decoder_out, lengths = self.model(
                     videos, sentences[:, :-1], video_lengths
                 )
-            
+
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
@@ -313,7 +323,7 @@ class Trainer:
             # Calculating the joint loss
             recognition_losses += recognition_loss.item() * videos.size(0)
             translation_losses += translation_loss.item() * videos.size(0)
-            
+
             loss = recognition_loss + translation_loss
             losses += loss.item() * videos.size(0)
 
@@ -326,35 +336,35 @@ class Trainer:
         losses = torch.tensor(losses).to(self.gpu_id)
         recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
         translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
-        
+
         torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
 
-        # Gather all predicted samples with their targets in order to calculate global WER 
+        # Gather all predicted samples with their targets in order to calculate global WER
         world_size = dist.get_world_size()
         gathered_predicted_glosses = [None for _ in range(world_size)]
         gathered_actual_glosses = [None for _ in range(world_size)]
-        
+
         gathered_predicted_sentences = [None for _ in range(world_size)]
         gathered_actual_sentences = [None for _ in range(world_size)]
-        
+
         dist.all_gather_object(gathered_predicted_glosses, predicted_glosses)
         dist.all_gather_object(gathered_actual_glosses, actual_glosses)
         dist.all_gather_object(gathered_predicted_sentences, predicted_sentences)
         dist.all_gather_object(gathered_actual_sentences, actual_sentences)
-        
+
         predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
         actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
-        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))   
+        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
 
         # if self.gpu_id == 0:
         #     print(f"Predicted Glosses: {predicted_glosses}\n")
         #     print(f"Actual Glosses: {actual_glosses}\n")
         #     print(f"Predicted Sentences: {predicted_sentences}\n")
         #     print(f"Actual Sentences: {actual_sentences}\n")
-        
+
         return (
             recognition_losses / len(self.valid_dl.dataset),
             translation_losses / len(self.valid_dl.dataset),
@@ -380,7 +390,7 @@ class Trainer:
     def _save_best(self, epoch: int, metric: float):
         if metric > self.best_metric or self.gpu_id != 0:
             return
-        
+
         self.best_metric = metric
         print("New best model, saving...\n")
         torch.save(
@@ -426,19 +436,19 @@ class Trainer:
         valid_epochs, valid_losses = zip(*self.valid_loss_history)
         train_losses = [t.item() for t in train_losses]
         valid_losses = [t.item() for t in valid_losses]
-        
+
         plt.locator_params(axis="x", integer=True, tight=True)
         plt.plot(train_epochs, train_losses, label="train")
         plt.plot(valid_epochs, valid_losses, label="valid")
         plt.legend(["train", "valid"], loc="upper left")
-        
+
         plt.savefig(os.path.join(self.diagram_path, "figure.png"))
-        
+
 
 def create_dataloaders(path: str, training_config: dict):
     # Splitting dataset into training, validation, and testing sets
     train, test, valid = None, None, None
-    
+
     if training_config["use_already_split_sets"]:
         train = pd.read_csv(os.path.join(path, "train.csv"))
         valid = pd.read_csv(os.path.join(path, "dev.csv"))
@@ -448,9 +458,13 @@ def create_dataloaders(path: str, training_config: dict):
         train_size, valid_size, test_size = training_config["split"]
         size = valid_size + test_size
         test_size /= size
-        train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
-        test, valid = train_test_split(test, test_size=test_size, random_state=training_config["seed"])
-    
+        train, test = train_test_split(
+            df, train_size=train_size, random_state=training_config["seed"]
+        )
+        test, valid = train_test_split(
+            test, test_size=test_size, random_state=training_config["seed"]
+        )
+
     train_set = PhoenixDataset(
         df=train,
         root_dir=PROCESSED_PATH,
@@ -567,7 +581,7 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer.train()
     destroy_process_group()
-    
+
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:

@@ -7,42 +7,6 @@ from torch.nn.utils.rnn import pad_sequence
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def split(x: Tensor, num_heads: int):
-    """
-    Splits the tensor into num_heads
-
-    Args:
-         x (Tensor): Original tensor (batch_size, sequence_size, d_model)
-
-    Returns:
-        Tensor: Tensor that is split into n heads
-        (batch_size, num_heads, sequence_size, d_model // num_heads)
-    """
-    # Shape: (batch_size, sequence_length, d_model)
-    N, length, _ = x.shape
-
-    # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
-    return x.reshape(N, length, num_heads, -1).transpose(1, 2)
-
-
-def concat(x: Tensor):
-    """
-    Concatenate the tensor's heads together
-
-    Args:
-        x (Tensor): Original tensor (batch_size, num_heads, sequence_size, d_model // num_heads)
-
-    Returns:
-        Tensor: Tensor that is split into n heads (batch_size, sequence_size, d_model)
-    """
-
-    N, _, length, _ = x.shape
-
-    # Transpose into (batch_size, sequence_length, num_heads, d_model)
-    # Then, reshape into (batch_size, sequence_length, d_model)
-    return x.transpose(1, 2).reshape(N, length, -1)
-
-
 def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token or is in the future
@@ -57,7 +21,7 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
 
     N, sequence_length = x.shape
     causal_mask = (
-        torch.tril(torch.ones((N, 1, sequence_length, sequence_length))).bool().to(DEVICE)
+        torch.tril(torch.ones(sequence_length, sequence_length)).unsqueeze(0).unsqueeze(1).bool().to(DEVICE)
     )
     padding_mask = generate_padding_mask(x, pad_token).bool().to(DEVICE)
 

@@ -42,7 +42,7 @@ class ASLModel(nn.Module):
         self.word_pad_token = word_to_idx["<pad>"]
 
         self.d_model = d_model
-
+    
         # Encoder
         self.src_embedding = SpatialEmbedding(
             d_model=d_model,
@@ -80,7 +80,7 @@ class ASLModel(nn.Module):
 
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
-    
+
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 

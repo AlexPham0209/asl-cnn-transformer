@@ -16,7 +16,7 @@ from torchvision.transforms import (
     Normalize,
     GaussianBlur,
     CenterCrop,
-    RandomHorizontalFlip
+    RandomHorizontalFlip,
 )
 from torchvision.transforms.v2 import UniformTemporalSubsample
 from torchvision.io import decode_image, read_file, decode_jpeg
