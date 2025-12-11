@@ -27,7 +27,9 @@ print(LANDMARKS_PATH)
 # Using pretrained model
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
-holistic_model = mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=2)
+holistic_model = mp_holistic.Holistic(
+    min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=2
+)
 
 
 def extract_landmarks(landmarks):
@@ -52,10 +54,12 @@ def get_features(results):
 
     return feature
 
+
 def draw_connections(image, results):
     mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
     mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
     mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
+
 
 def process_features(path):
     video = cv2.VideoCapture(path)

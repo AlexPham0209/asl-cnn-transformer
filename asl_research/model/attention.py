@@ -58,7 +58,6 @@ class MultiHeadAttention(nn.Module):
         # Determines which token/word it should attend to?
         # Shape: (batch_size, target_sequence_length, d_model)
         return self.w_o(out)
-    
 
     def split(self, x: Tensor):
         """
@@ -76,7 +75,6 @@ class MultiHeadAttention(nn.Module):
 
         # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
         return x.reshape(N, length, self.num_heads, -1).transpose(1, 2)
-
 
     def concat(self, x: Tensor):
         """

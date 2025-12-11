@@ -71,7 +71,7 @@ class DecoderLayer(nn.Module):
         # Position-Wise Feed Forward
         # Shape: (batch_size, target_sequence_size, d_model)
         x_norm = self.layer_norm_3(x)
-        x = x + self.dropout_2(self.ff(x_norm))
+        x = x + self.dropout_3(self.ff(x_norm))
 
         return x
 

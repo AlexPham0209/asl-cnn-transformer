@@ -44,7 +44,7 @@ class BaseTransformer(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, src: Tensor, trg: Tensor, src_mask: Tensor):
-        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token).to(trg.device)
+        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token)
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
@@ -80,7 +80,7 @@ class BaseTransformer(nn.Module):
 
         for t in range(1, max_len):
             out = sequence[:, :t]
-            trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)
+            trg_mask = generate_square_subsequent_mask(out, self.pad_token)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
