@@ -18,6 +18,7 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
 
     N, sequence_length = x.shape
+    # Causal mask: (1, 1, sequence_size, sequence_size)
     causal_mask = (
         torch.tril(torch.ones(sequence_length, sequence_length))
         .unsqueeze(0)
@@ -25,6 +26,8 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
         .bool()
         .to(x.device)
     )
+
+    # Padding mask: (batch_size, 1, 1, sequence_size)
     padding_mask = generate_padding_mask(x, pad_token).to(x.device)
 
     mask = causal_mask & padding_mask

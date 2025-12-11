@@ -1,6 +1,7 @@
 import json
 import os
 
+import numpy as np
 import pandas as pd
 from pytorchvideo.data.encoded_video import EncodedVideo
 import torch
@@ -50,6 +51,7 @@ class PhoenixDataset(Dataset):
         self.vocab_path = os.path.join(root_dir, "vocab.json")
         self.video_dir = os.path.join(root_dir, "videos_phoenix", "videos")
         self.processed_video_dir = os.path.join(root_dir, "processed_videos")
+        self.landmarks_dir = os.path.join(root_dir, "features", "landmarks")
 
         self.sampling_ratio = sampling_ratio
         self.random_sampling = random_subsampling
@@ -114,6 +116,7 @@ class PhoenixDataset(Dataset):
         item = self.df.iloc[index]
         path = os.path.join(self.video_dir, item["paths"])
         processed_path = os.path.join(self.processed_video_dir, item["processed_paths"])
+        landmark_path = os.path.join(self.landmarks_dir, f"{item["processed_path"]}.npy")
         glosses = item["glosses"]
         sentence = item["texts"]
 
@@ -127,13 +130,15 @@ class PhoenixDataset(Dataset):
 
         # Get video and apply augmentations on it
         assert os.path.exists(processed_path), "Processed path doesn't exists"
-        video_data = self.read_video(processed_path)
-        video_data = (
-            self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
-        )
+        # video_data = self.read_video(processed_path)
+        # video_data = (
+        #     self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
+        # )
 
-        return (
-            video_data,
+        landmarks = self.standardize_points(np.load(landmark_path))
+
+        return (    
+            landmarks,
             gloss_tokens,
             word_tokens,
             self.gloss_to_idx["<pad>"],
@@ -188,13 +193,38 @@ class PhoenixDataset(Dataset):
         gloss_sequences = pad_sequence(
             gloss_sequences, batch_first=True, padding_value=gloss_pad_token
         )
-
+        
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
 
         return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+    
+    @staticmethod
+    def collate_fn_landmarks(batch: list):
+        landmarks, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)
+        gloss_pad_token = gloss_pad_token[0]
+        word_pad_token = word_pad_token[0]
 
+        # Padding videos with 0
+        landmark_lengths = torch.tensor([landmark.shape[0] for landmark in landmarks])
+        landmarks = pad_sequence(landmarks, batch_first=True, padding_value=0)
+
+        # Padding gloss sequences
+        gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
+        gloss_sequences = pad_sequence(
+            gloss_sequences, batch_first=True, padding_value=gloss_pad_token
+        )
+        
+        # Padding sentences
+        sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
+        sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
+
+        return landmarks, landmark_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+
+    def standardize_points(self, x: torch.Tensor):
+        return (x - x.mean(dim=0)) / (x.std(dim=0) + 1e-4)
+    
     @staticmethod
     def collate_fn_no_padding(batch: list):
         videos, gloss_sequences, sentences, gloss_pad_token, word_pad_token = zip(*batch)

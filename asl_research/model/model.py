@@ -74,7 +74,7 @@ class ASLModel(nn.Module):
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src, src_mask, src_lengths = self.src_embedding(src, src_lengths)
         trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token)
-
+        
         src = src * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
 

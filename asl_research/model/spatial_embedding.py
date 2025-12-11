@@ -161,3 +161,43 @@ class SpatialEmbedding(nn.Module):
 
         # Reshaping the output of the Resnet
         return x, mask, lengths
+
+class PoseEmbedding(nn.Module):
+    def __init__(
+        self,
+        in_channels: int = 225,
+        d_model: int = 512,
+        hidden_size: int = 512,
+        dropout: float = 0.1,
+    ):
+        super(SpatialEmbedding, self).__init__()
+
+        self.conv_1 = Conv1DBlock(in_channels=in_channels, out_channels=hidden_size, kernel_size=5)
+        self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
+        self.ff = nn.Linear(hidden_size, d_model)
+        self.bn = MaskedBatchNorm(num_features=d_model)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x: Tensor, lengths: Tensor = None):
+        """
+        Convert T frames of a 224x224 video into a 2d embedding matrix of size (time_out, d_model)
+
+        Args:
+        x: Batch of videos (batch_size, time, 225)
+
+        Returns:
+            (Tensor): Tensor of shape (batch_size, time_out, depth_out * height_out * width_out)
+        """
+        # Merge batches and time into the first dimension
+        # Allows for the CNN to be applied to every temporal slice
+        # x, lengths = self.conv_1(x, lengths)
+        # x, lengths = self.conv_2(x, lengths)
+
+        mask = generate_padding_mask_from_lengths(lengths).to(lengths.device)
+        x = self.ff(x)
+        x = self.bn(x, mask)
+        x = self.relu(x)
+
+        # Reshaping the output of the Resnet
+        return x, mask, lengths
