@@ -10,7 +10,7 @@ model:
 
 training:
   # Basic hyperparameters
-  epochs: 100
+  epochs: 200
   batch_size: 8
   lr: 1e-3
   weight_decay: 5e-4
@@ -20,7 +20,7 @@ training:
   # File path locations
   save_path: 'models'
   file_name: 'best5'
-  load_path: 'models/epoch_75.pt'
+  load_path: 'models/best5.pt'
   diagram_path: 'reports/figures'
 
   # Weights used for joint loss
@@ -53,5 +53,5 @@ training:
   
 
 testing:
-  load_path: 'models/epoch_75.pt'
+  load_path: 'models/best5.pt'
   beam_search: false
