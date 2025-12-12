@@ -3,7 +3,9 @@ from typing import Optional
 import torch
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
-
+from rouge_score import rouge_scorer
+from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
+import nltk
 
 def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
@@ -30,6 +32,9 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     # Padding mask: (batch_size, 1, 1, sequence_size)
     padding_mask = generate_padding_mask(x, pad_token).to(x.device)
 
+    # Uses Bitwise And operation to combine the causal and padding masks
+    # For an entry, ij, if it is not a padding mask AND if it is not a future token, 
+    # then we don't mask this entry and we allow the attention module to pay attention to it
     mask = causal_mask & padding_mask
     return mask
 
@@ -44,7 +49,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     Returns:
         Tensor: Masking boolean tensor (batch_size, 1, 1, sequence_size)
     """
-
+    
     N, sequence_length = x.shape
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(x.device)
 
@@ -159,6 +164,31 @@ def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
     ]
     return sequence
 
+def calculate_bleu_scores(predicted: list, actual: list):
+    scorer = rouge_scorer.RougeScorer(['rouge1'], use_stemmer=True)
+    scores = []
+
+    for reference, hypothesis in zip(predicted, actual):
+        score = sentence_bleu([reference.split()], hypothesis.split(), weights = [1])
+        scores.append(score)
+    
+    return torch.tensor(scores)
+
+def calculate_rouge_scores(predicted: list, actual: list):
+    scorer = rouge_scorer.RougeScorer(['rouge1'], use_stemmer=True)
+    precisions = []
+    recalls = []
+    fmeasures = []
+
+    for a, b in zip(predicted, actual):
+        score = scorer.score(a, b)
+        precision, recall, fmeasure = score['rouge1']
+
+        precisions.append(precision)
+        recalls.append(recall)
+        fmeasures.append(fmeasure)
+    
+    return torch.tensor(precisions), torch.tensor(recalls), torch.tensor(fmeasures)
 
 if __name__ == "__main__":
     n_features = 12

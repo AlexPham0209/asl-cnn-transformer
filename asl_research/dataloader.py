@@ -135,8 +135,9 @@ class PhoenixDataset(Dataset):
         #     self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
         # )
 
-        landmarks = self.standardize_points(np.load(landmark_path))
-
+        # Getting landmarks data (time, 225) and standardizing it 
+        landmarks = np.load(landmark_path)
+        
         return (    
             landmarks,
             gloss_tokens,

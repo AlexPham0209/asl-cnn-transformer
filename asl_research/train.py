@@ -15,6 +15,7 @@ from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
+from torcheval.metrics.functional import rou
 
 from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
 import os
@@ -27,7 +28,6 @@ from sklearn.model_selection import train_test_split
 import torch.multiprocessing as mp
 import pandas as pd
 import torch.distributed as dist
-
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
@@ -196,16 +196,16 @@ class Trainer:
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
 
-        for videos, video_lengths, glosses, gloss_lengths, sentences, _ in dl:
-            videos = videos.to(self.gpu_id)
-            video_lengths = video_lengths.to(self.gpu_id)
+        for landmarks, landmark_lengths, glosses, gloss_lengths, sentences, _ in dl:
+            landmarks = landmarks.to(self.gpu_id)
+            landmark_lengths = landmark_lengths.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
 
             self.optimizer.zero_grad()
             encoder_out, decoder_out, lengths = self.model(
-                videos, sentences[:, :-1], video_lengths
+                landmarks, sentences[:, :-1], landmark_lengths
             )
 
             # Encoder loss
@@ -223,11 +223,11 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item() * videos.size(0)
-            translation_losses += translation_loss.item() * videos.size(0)
+            recognition_losses += recognition_loss.item() * landmarks.size(0)
+            translation_losses += translation_loss.item() * landmarks.size(0)
 
             loss = recognition_loss + translation_loss
-            losses += loss.item() * videos.size(0)
+            losses += loss.item() * landmarks.size(0)
 
             loss.backward()
 
@@ -268,9 +268,9 @@ class Trainer:
 
         dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"Validating")
 
-        for videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
-            videos = videos.to(self.gpu_id)
-            video_lengths = video_lengths.to(self.gpu_id)
+        for landmarks, landmark_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
+            landmarks = landmarks.to(self.gpu_id)
+            landmark_lengths = landmark_lengths.to(self.gpu_id)
 
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
@@ -280,7 +280,7 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
-                    videos, src_lengths=video_lengths, max_len=torch.max(sentence_lengths).item()
+                    landmarks, src_lengths=landmark_lengths, max_len=torch.max(sentence_lengths).item()
                 )
 
             # Convert output tensors into strings
@@ -303,7 +303,7 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out, lengths = self.model(
-                    videos, sentences[:, :-1], video_lengths
+                    landmarks, sentences[:, :-1], landmark_lengths
                 )
 
             # Encoder loss
@@ -321,11 +321,11 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item() * videos.size(0)
-            translation_losses += translation_loss.item() * videos.size(0)
+            recognition_losses += recognition_loss.item() * landmarks.size(0)
+            translation_losses += translation_loss.item() * landmarks.size(0)
 
             loss = recognition_loss + translation_loss
-            losses += loss.item() * videos.size(0)
+            losses += loss.item() * landmarks.size(0)
 
         # print(f"Predicted Glosses: {predicted_glosses}")
         # print(f"Actual Glosses: {actual_glosses}\n")
@@ -341,7 +341,7 @@ class Trainer:
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
 
-        # Gather all predicted samples with their targets in order to calculate global WER
+        # Gather all predicted samples with their targets in order to calculate global metrics
         world_size = dist.get_world_size()
         gathered_predicted_glosses = [None for _ in range(world_size)]
         gathered_actual_glosses = [None for _ in range(world_size)]
@@ -500,7 +500,7 @@ def create_dataloaders(path: str, training_config: dict):
         train_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
         pin_memory=True,
         sampler=DistributedSampler(train_set),
     )
@@ -508,7 +508,7 @@ def create_dataloaders(path: str, training_config: dict):
         valid_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
         pin_memory=True,
         sampler=DistributedSampler(valid_set),
     )
@@ -516,7 +516,7 @@ def create_dataloaders(path: str, training_config: dict):
         test_set,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
-        collate_fn=PhoenixDataset.collate_fn,
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
         pin_memory=True,
         sampler=DistributedSampler(test_set),
     )
