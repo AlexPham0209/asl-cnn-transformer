@@ -8,7 +8,7 @@ from torch.nn.functional import softmax, log_softmax
 
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
-from asl_research.model.spatial_embedding import SpatialEmbedding
+from asl_research.model.spatial_embedding import PoseEmbedding, SpatialEmbedding
 from asl_research.utils.utils import (
     generate_square_subsequent_mask,
     generate_padding_mask_from_lengths,
@@ -44,12 +44,13 @@ class ASLModel(nn.Module):
         self.d_model = d_model
 
         # Encoder
-        self.src_embedding = SpatialEmbedding(
+        self.src_embedding = PoseEmbedding(
+            in_channels=225,
             d_model=d_model,
             hidden_size=1024,
             dropout=dropout,
-            pretrained_model=pretrained_embedding,
         )
+
         self.encoder = TransformerEncoder(
             num_layers=num_encoders,
             d_model=d_model,
@@ -80,7 +81,7 @@ class ASLModel(nn.Module):
 
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
-
+        
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 
