@@ -133,6 +133,17 @@ def pad_video_with_first_frame(x: Tensor, length: int = 100):
     out[length - T :] = x
     return out
 
+def pad_landmarks(batch: Tensor):
+    T = max([landmarks.size(dim=0) for landmarks in batch])
+    _, features = batch[0].shape
+    res = torch.zeros(len(batch), T, features)
+    mask = torch.zeros(len(batch), T)
+
+    for i, landmarks in enumerate(batch):
+        res[i, :landmarks.size(dim=0), :] = landmarks
+        mask[i, :landmarks.size(dim=0)] = 1
+
+    return res, mask.unsqueeze(1).unsqueeze(2)
 
 def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
     assert "<pad>" in word_to_idx
@@ -193,22 +204,10 @@ def calculate_rouge_scores(predicted: list, actual: list):
 if __name__ == "__main__":
     n_features = 12
 
-    a = torch.arange(1, 3 * n_features + 1).reshape(3, n_features)
-    b = torch.arange(1, 6 * n_features + 1).reshape(6, n_features)
-    c = torch.arange(1, 3 * n_features + 1).reshape(3, n_features)
+    a = torch.arange(1, 6 * 4 + 1).reshape(6, 4)
+    
+    batch, mask = pad_landmarks([a[:1], a[:4], a])
+    print(mask)
+    print(generate_padding_mask(batch[:, :, 0], 0))
 
-    test = torch.zeros(3, max([a.shape[0], b.shape[0], c.shape[0]]), n_features)
-    test[0, : a.shape[0]] = a
-    test[1, : b.shape[0]] = b
-    test[2, : c.shape[0]] = c
-    print(test.shape)
-    a = (test != torch.zeros(n_features))[..., 0].unsqueeze(1).unsqueeze(2)
-    b = generate_video_padding_mask(torch.tensor([a.shape[0], b.shape[0], c.shape[0]]))
-    print(torch.equal(a, b))
 
-    print(
-        pad_sequence(
-            [torch.tensor([1, 2]), torch.tensor([1, 2, 3, 4]), torch.tensor([1, 3])],
-            batch_first=True,
-        )
-    )

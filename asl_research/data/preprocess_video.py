@@ -86,12 +86,6 @@ def process_features(path):
 
 def process_videos(folder):
     PATH = os.path.join(LANDMARKS_PATH)
-    try:
-        os.mkdir(PATH)
-        print(f"Directory '{os.path.basename(os.mkdir(PATH))}' created successfully.")
-    except FileExistsError:
-        print(f"Directory '{os.path.basename(PATH)}' already exists.")
-    
 
     videos = os.path.join(EXTERNAL_VIDEO_PATH, folder)
     for video in tqdm(os.listdir(videos), desc=f"Processing {folder} folder"):
@@ -99,22 +93,15 @@ def process_videos(folder):
         features = process_features(video_path)
         features = features.cpu().detach().numpy()
         np.save(os.path.join(PATH, f"{os.path.basename(video)}.npy"), features)
-
+    
 
 if __name__ == "__main__":
     # Creating features folder
-    try:
+    if not os.path.exists(FEATURES_PATH):
         os.mkdir(FEATURES_PATH)
-        print(f"Directory '{os.path.basename(os.mkdir(FEATURES_PATH))}' created successfully.")
-    except FileExistsError:
-        print(f"Directory '{os.path.basename(FEATURES_PATH)}' already exists.")
 
-    # Creating landmark folder inside of features folder
-    try:
-        os.mkdir(LANDMARKS_PATH)
-        print(f"Directory '{os.path.basename(os.mkdir(LANDMARKS_PATH))}' created successfully.")
-    except FileExistsError:
-        print(f"Directory '{os.path.basename(LANDMARKS_PATH)}' already exists.")
+    if not os.path.exists(LANDMARKS_PATH):
+        os.mkdir(FEATURES_PATH)
 
     # Process train, dev, and test videos so they are matrices of landmark data
     process_videos("train")

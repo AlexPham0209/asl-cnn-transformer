@@ -148,7 +148,7 @@ def test_transformer_training():
         pad_token=word_to_idx['<pad>'],
     ).to(DEVICE)
 
-    optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-4, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = torch.optim.Adam(transformer.parameters(), lr=1e-5, betas=(0.9, 0.98), eps=1e-9)
     criterion = torch.nn.CrossEntropyLoss()
     
     # Training model

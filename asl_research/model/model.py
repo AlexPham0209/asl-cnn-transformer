@@ -44,13 +44,20 @@ class ASLModel(nn.Module):
         self.d_model = d_model
 
         # Encoder
+        # self.src_embedding = SpatialEmbedding(
+        #     d_model=d_model,
+        #     hidden_size=1024,
+        #     dropout=dropout,
+        #     pretrained_model=pretrained_embedding,
+        # )
+
         self.src_embedding = PoseEmbedding(
             in_channels=225,
             d_model=d_model,
             hidden_size=1024,
             dropout=dropout,
         )
-
+        
         self.encoder = TransformerEncoder(
             num_layers=num_encoders,
             d_model=d_model,
@@ -81,7 +88,7 @@ class ASLModel(nn.Module):
 
         src = self.encoder(src, src_mask)
         trg = self.decoder(trg, src, trg_mask, src_mask)
-        
+
         src = self.ff_1(src)
         trg = self.ff_2(trg)
 
