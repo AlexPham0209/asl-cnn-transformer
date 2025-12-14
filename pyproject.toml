@@ -34,9 +34,10 @@ dependencies = [
     "tqdm",
     "torcheval",
     "pytorchvideo",
-    "mediapipe"
+    "mediapipe; python_version >= '3.12'",
+    "mediapipe==0.10.9; python_version == '3.11'"
 ]
-requires-python = "~=3.12.0"
+requires-python = ">=3.11.0"
 
 [project.scripts]
 download = "asl_research.data.download:main"

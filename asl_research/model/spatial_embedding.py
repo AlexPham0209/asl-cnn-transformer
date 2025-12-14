@@ -162,6 +162,7 @@ class SpatialEmbedding(nn.Module):
         # Reshaping the output of the Resnet
         return x, mask, lengths
 
+
 class PoseEmbedding(nn.Module):
     def __init__(
         self,

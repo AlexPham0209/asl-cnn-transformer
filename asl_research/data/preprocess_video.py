@@ -3,11 +3,22 @@ from matplotlib import rc_file
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights
-from torchvision.io import read_image, read_file, decode_jpeg
+# from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights
+# from torchvision.io import read_image, read_file, decode_jpeg
 import cv2
-import mediapipe as mp
 from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
+
+import os
+import contextlib
+import sys
+
+# Silence MediaPipe / TensorFlow / Abseil logs
+os.environ["GLOG_minloglevel"] = "2"        # 0=INFO, 1=WARNING, 2=ERROR
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"    # TensorFlow C++ logs
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+
+import mediapipe as mp
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -24,11 +35,7 @@ I3D_PATH = os.path.join(FEATURES_PATH, "i3d")
 LANDMARKS_PATH = os.path.join(FEATURES_PATH, "landmarks")
 
 # Using pretrained model
-mp_holistic = mp.solutions.holistic
-mp_drawing = mp.solutions.drawing_utils
-holistic_model = mp_holistic.Holistic(
-    min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=0
-)
+
 
 
 def extract_landmarks(landmarks):
@@ -54,18 +61,18 @@ def get_features(results):
     return feature
 
 
-def draw_connections(image, results):
-    mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-    mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-    mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
-
-
 def process_features(path):
+    # Filter all warnings
     video = cv2.VideoCapture(path)
     success, image = video.read()
     count = 0
     landmarks = []
 
+    mp_holistic = mp.solutions.holistic
+    model = mp_holistic.Holistic(
+        min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=2
+    )
+    
     while success:
         success, image = video.read()
 
@@ -73,7 +80,7 @@ def process_features(path):
             break
 
         # Process model using Mediapipe's Hollistic model
-        results = holistic_model.process(image)
+        results = model.process(image)
         features = get_features(results)
         landmarks.append(features)
         count += 1
@@ -81,19 +88,27 @@ def process_features(path):
     landmarks = torch.stack(landmarks, dim=0)
     video.release()
 
-    return landmarks
+    return landmarks, os.path.basename(path)
 
 
 def process_videos(folder):
     PATH = os.path.join(LANDMARKS_PATH)
 
-    videos = os.path.join(EXTERNAL_VIDEO_PATH, folder)
-    for video in tqdm(os.listdir(videos), desc=f"Processing {folder} folder"):
-        video_path = os.path.join(videos, video)
-        features = process_features(video_path)
-        features = features.cpu().detach().numpy()
-        np.save(os.path.join(PATH, f"{os.path.basename(video)}.npy"), features)
+    # if not os.path.exists(PATH):
+    #     os.mkdir(PATH)
+
+    videos_path = os.path.join(EXTERNAL_VIDEO_PATH, folder)
+    videos_list = [os.path.join(videos_path, video) for video in os.listdir(videos_path)]
     
+    with Pool(processes=cpu_count()) as p:
+        for features, name in tqdm(
+            p.imap_unordered(process_features, videos_list),
+            total=len(videos_list),
+            desc=f"Processing {folder} folder",
+        ):
+            features = features.cpu().detach().numpy()
+            np.save(os.path.join(PATH, f"{name}.npy"), features)
+
 
 if __name__ == "__main__":
     # Creating features folder
@@ -101,7 +116,7 @@ if __name__ == "__main__":
         os.mkdir(FEATURES_PATH)
 
     if not os.path.exists(LANDMARKS_PATH):
-        os.mkdir(LANDMARKS_PATH)
+        os.mkdir(FEATURES_PATH)
 
     # Process train, dev, and test videos so they are matrices of landmark data
     process_videos("train")

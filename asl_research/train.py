@@ -29,6 +29,7 @@ import torch.multiprocessing as mp
 import pandas as pd
 import torch.distributed as dist
 
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
@@ -280,7 +281,9 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
-                    landmarks, src_lengths=landmark_lengths, max_len=torch.max(sentence_lengths).item()
+                    landmarks,
+                    src_lengths=landmark_lengths,
+                    max_len=torch.max(sentence_lengths).item(),
                 )
 
             # Convert output tensors into strings
