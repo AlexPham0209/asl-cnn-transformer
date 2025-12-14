@@ -3,6 +3,7 @@ from matplotlib import rc_file
 import numpy as np
 import torch
 import torch.nn as nn
+
 # from torchvision.models import resnet50, ResNet50_Weights, efficientnet_b0, EfficientNet_B0_Weights
 # from torchvision.io import read_image, read_file, decode_jpeg
 import cv2
@@ -13,9 +14,18 @@ import os
 import contextlib
 import sys
 
+import absl.logging
+import os
+
+# Set Abseil logging verbosity to WARNING (2), ERROR (3) or FATAL (5)
+absl.logging.set_verbosity(absl.logging.WARNING)
+
+# You can also set a specific stderr threshold
+absl.logging.set_stderrthreshold(absl.logging.WARNING)
+
 # Silence MediaPipe / TensorFlow / Abseil logs
-os.environ["GLOG_minloglevel"] = "2"        # 0=INFO, 1=WARNING, 2=ERROR
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"    # TensorFlow C++ logs
+os.environ["GLOG_minloglevel"] = "2"  # 0=INFO, 1=WARNING, 2=ERROR
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # TensorFlow C++ logs
 os.environ["GRPC_VERBOSITY"] = "ERROR"
 
 import mediapipe as mp
@@ -33,9 +43,6 @@ EXTERNAL_VIDEO_PATH = os.path.join(
 
 I3D_PATH = os.path.join(FEATURES_PATH, "i3d")
 LANDMARKS_PATH = os.path.join(FEATURES_PATH, "landmarks")
-
-# Using pretrained model
-
 
 
 def extract_landmarks(landmarks):
@@ -70,9 +77,9 @@ def process_features(path):
 
     mp_holistic = mp.solutions.holistic
     model = mp_holistic.Holistic(
-        min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=2
+        min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=0
     )
-    
+
     while success:
         success, image = video.read()
 
@@ -88,18 +95,24 @@ def process_features(path):
     landmarks = torch.stack(landmarks, dim=0)
     video.release()
 
-    return landmarks, os.path.basename(path)
+    return landmarks, os.path.basename(path).replace(".mp4", "")
 
 
 def process_videos(folder):
     PATH = os.path.join(LANDMARKS_PATH)
 
-    # if not os.path.exists(PATH):
-    #     os.mkdir(PATH)
+    if not os.path.exists(os.path.join(PATH, folder)):
+        os.mkdir(os.path.join(PATH, folder))
 
     videos_path = os.path.join(EXTERNAL_VIDEO_PATH, folder)
-    videos_list = [os.path.join(videos_path, video) for video in os.listdir(videos_path)]
-    
+    videos_list = [
+        os.path.join(videos_path, video)
+        for video in os.listdir(videos_path)
+        if not os.path.exists(
+            os.path.join(PATH, folder, f"{os.path.basename(video).replace('.mp4', '')}.npy")
+        )
+    ]
+
     with Pool(processes=cpu_count()) as p:
         for features, name in tqdm(
             p.imap_unordered(process_features, videos_list),
@@ -107,7 +120,7 @@ def process_videos(folder):
             desc=f"Processing {folder} folder",
         ):
             features = features.cpu().detach().numpy()
-            np.save(os.path.join(PATH, f"{name}.npy"), features)
+            np.save(os.path.join(PATH, folder, f"{name}.npy"), features)
 
 
 if __name__ == "__main__":
@@ -118,10 +131,16 @@ if __name__ == "__main__":
     if not os.path.exists(LANDMARKS_PATH):
         os.mkdir(FEATURES_PATH)
 
+    print(f"Number of CPUs: {cpu_count()}")
     # Process train, dev, and test videos so they are matrices of landmark data
+    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "train"))))
+    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "dev"))))
+    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "test"))))
     process_videos("train")
     process_videos("dev")
     process_videos("test")
+
+    print(np.load("data/processed/phoenixweather2014t/features/landmarks/dev/01April_2010_Thursday_heute-6697.npy"))
 
 # print(
 #     np.load(
