@@ -28,6 +28,8 @@ from asl_research.utils.utils import (
 )
 import random
 
+from asl_research.vocab import GlossVocabulary, TextVocabulary
+
 # mean = (0.53724027, 0.5272855, 0.51954997)
 # std = (1, 1, 1)
 
@@ -39,7 +41,8 @@ class PhoenixDataset(Dataset):
     def __init__(
         self,
         df: pd.DataFrame,
-        vocab_path: str,
+        gloss_vocab: GlossVocabulary,
+        text_vocab: TextVocabulary,
         sampling_ratio: int = 2,
         masking_ratio: float = 0.8,
         random_sampling: bool = True,
@@ -47,26 +50,16 @@ class PhoenixDataset(Dataset):
         is_train: bool = True,
     ):
         super().__init__()
-        self.vocab_path = vocab_path
+        self.df = df
+        self.text_vocab = text_vocab
+        self.gloss_vocab = gloss_vocab
+
         self.sampling_ratio = sampling_ratio
         self.random_sampling = random_sampling
         self.masking_ratio = masking_ratio
         self.random_masking = random_masking
 
         self.is_train = is_train
-        
-        self.df = df
-        self.vocab = json.load(open(self.vocab_path))
-
-        self.glosses = self.vocab["glosses"]
-        self.words = self.vocab["words"]
-
-        # Create dictionaries to convert string tokens into their ids and vice versa
-        self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
-        self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
-
-        self.word_to_idx = {word: i for i, word in enumerate(self.words)}
-        self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
         # Data augmentation settings
         self.train_transform = Compose(
@@ -99,40 +92,25 @@ class PhoenixDataset(Dataset):
         name = item["id"]
         video_path = item["video_path"]
         landmark_path = item["landmark_path"]
-        glosses = item["gloss"]
+        gloss = item["gloss"]
         sentence = item["text"]
 
         # Convert strings into token sequences
-        gloss_tokens = torch.tensor([self.gloss_to_idx[gloss] for gloss in glosses.split()])
-        word_tokens = torch.tensor(
-            [self.word_to_idx["<sos>"]]
-            + [self.word_to_idx[word] for word in sentence.split()]
-            + [self.word_to_idx["<eos>"]]
-        )
-
-        # Get video and apply augmentations on it
-        assert os.path.exists(video_path), "Video path doesn't exists"
-        assert os.path.exists(landmark_path), "Landmark path doesn't exists"
-        # video_data = self.read_video(processed_path)
-        # video_data = (
-        #     self.train_transform(video_data) if self.is_train else self.valid_transform(video_data)
-        # )
+        gloss_tokens = self.gloss_vocab.tokenize(gloss)
+        word_tokens = self.text_vocab.tokenize(sentence)
 
         # Getting landmarks data (time, 225) and standardizing it
         landmarks = torch.tensor(np.load(landmark_path))
         if self.random_sampling and self.is_train:
-            landmarks = landmarks[::self.sampling_ratio]
-        
+            landmarks = landmarks[:: self.sampling_ratio]
+
         return (
             landmarks,
             gloss_tokens,
             word_tokens,
-            self.gloss_to_idx["<pad>"],
-            self.word_to_idx["<pad>"],
+            self.gloss_vocab.pad_token,
+            self.text_vocab.pad_token,
         )
-
-    def get_vocab(self):
-        return self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word
 
     def read_video(self, path: str):
         frames = []
@@ -183,8 +161,8 @@ class PhoenixDataset(Dataset):
         # Padding sentences
         sentence_lengths = torch.tensor([sentence.shape[0] for sentence in sentences])
         sentences = pad_sequence(sentences, batch_first=True, padding_value=word_pad_token)
-    
-        return videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths
+
+        return {videos, video_lengths, gloss_sequences, gloss_lengths, sentences, sentence_lengths}
 
     @staticmethod
     def collate_fn_landmarks(batch: list):
@@ -195,7 +173,7 @@ class PhoenixDataset(Dataset):
         # Padding landmarks with 0
         landmark_lengths = torch.tensor([landmark.shape[0] for landmark in landmarks])
         landmarks = pad_sequence(landmarks, batch_first=True, padding_value=0)
-        
+
         # Padding gloss sequences
         gloss_lengths = torch.tensor([glosses.shape[0] for glosses in gloss_sequences])
         gloss_sequences = pad_sequence(

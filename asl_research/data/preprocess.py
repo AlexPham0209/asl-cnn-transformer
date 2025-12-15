@@ -16,6 +16,7 @@ VIDEO_PATH = os.path.join(EXTERNAL_PATH, "videos_phoenix", "videos")
 PROCESSED_VIDEO_PATH = os.path.join(PROCESSED_PATH, "features", "videos")
 LANDMARKS_PATH = os.path.join(PROCESSED_PATH, "features", "landmarks")
 
+
 def with_opencv(filename):
     video = cv2.VideoCapture(filename)
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -30,12 +31,11 @@ def convert_to_frames(video_folder, path):
         os.mkdir(folder_path)
     else:
         return os.path.basename(folder_path), folder_path
-        
-    
+
     video = cv2.VideoCapture(path)
     success, image = video.read()
     count = 0
-    
+
     while success:
         cv2.imwrite(os.path.join(folder_path, f"frame_{count}.jpg"), image)
         # save frame as JPEG file
@@ -43,7 +43,7 @@ def convert_to_frames(video_folder, path):
         count += 1
 
     return os.path.basename(folder_path), folder_path
-    
+
 
 def video_path(set):
     return list(
@@ -56,11 +56,11 @@ def video_path(set):
 
 def create_dataset(paths, glosses, texts, name):
     df = pd.DataFrame({"path": paths, "gloss": glosses, "text": texts})
-        
+
     # Removing duplicate rows
     print("Removing duplicates and dropping missing information...")
     df = df.drop_duplicates()
-    
+
     # Removing rows with missing information
     df = df.dropna()
 
@@ -75,7 +75,7 @@ def create_dataset(paths, glosses, texts, name):
 
     # Removing sequences with plus in it
     df = df.loc[~df["gloss"].str.contains(r"[\+]+")]
-    
+
     # Removing numbers
     df["text"] = df["text"].str.replace(r"\d+", "")
     df["gloss"] = df["gloss"].str.replace(r"\d+", "")
@@ -94,11 +94,11 @@ def create_dataset(paths, glosses, texts, name):
         )
     )
     df["frames"] = frames
-    
+
     video_folder = os.path.join(PROCESSED_VIDEO_PATH, name)
     if not os.path.exists(video_folder):
         os.mkdir(video_folder)
-    
+
     print("Splitting .mp4 into JPEG frames...")
     video_paths = list(
         map(
@@ -116,19 +116,20 @@ def create_dataset(paths, glosses, texts, name):
     if not os.path.exists(landmarks_folder):
         os.mkdir(landmarks_folder)
     df["landmark_path"] = df["id"].map(lambda id: os.path.join(landmarks_folder, f"{id}.npy"))
-    
+
     # Filter outliers outside of 3 standard deviations
     # df = df[np.abs(stats.zscore(df["frames"])) < 3]
 
     df.to_csv(os.path.join(PROCESSED_PATH, f"{name}.csv"), index=False)
 
+
 def create_vocab(glosses, texts):
     df = pd.DataFrame({"gloss": glosses, "text": texts})
-        
+
     # Removing duplicate rows
     print("Removing duplicates and dropping missing information...")
     df = df.drop_duplicates()
-    
+
     # Removing rows with missing information
     df = df.dropna()
 
@@ -143,14 +144,14 @@ def create_vocab(glosses, texts):
 
     # Removing sequences with plus in it
     df = df.loc[~df["gloss"].str.contains(r"[\+]+")]
-    
+
     # Removing numbers
     df["text"] = df["text"].str.replace(r"\d+", "")
     df["gloss"] = df["gloss"].str.replace(r"\d+", "")
-    
+
     # Filter outliers outside of 3 standard deviations
     # df = df[np.abs(stats.zscore(df["frames"])) < 3]
-    
+
     print("Creating vocabulary...")
     # Create vocabulary for gloss sequences and words
     gloss_count = Counter(
@@ -174,7 +175,7 @@ def create_vocab(glosses, texts):
     with open(os.path.join(PROCESSED_PATH, "vocab.json"), "w") as f:
         json.dump(vocab, f, indent=4)
 
-    
+
 def main():
     try:
         os.mkdir(PROCESSED_VIDEO_PATH)
@@ -213,7 +214,7 @@ def main():
 
     paths = video_path(train) + video_path(test) + video_path(dev)
     df = pd.DataFrame({"path": paths, "gloss": glosses, "text": texts})
-    
+
     if not os.path.exists(PROCESSED_VIDEO_PATH):
         os.mkdir(PROCESSED_VIDEO_PATH)
 
@@ -223,7 +224,7 @@ def main():
         [key["text"].lower().replace(".", "").strip() for key in train],
         "train",
     )
-    
+
     create_dataset(
         video_path(dev),
         [key["gloss"].upper().strip() for key in dev],

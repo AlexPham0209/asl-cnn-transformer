@@ -1,4 +1,5 @@
 import itertools
+import json
 import os
 import time
 
@@ -28,6 +29,8 @@ import torch.multiprocessing as mp
 import pandas as pd
 import torch.distributed as dist
 
+from asl_research.vocab import GlossVocabulary, TextVocabulary
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
@@ -52,7 +55,8 @@ class Trainer:
     def __init__(
         self,
         model: ASLModel,
-        vocab: tuple[dict, dict, dict, dict],
+        gloss_vocab: GlossVocabulary,
+        text_vocab: TextVocabulary,
         train_dl: DataLoader,
         valid_dl: DataLoader,
         test_dl: DataLoader,
@@ -69,7 +73,8 @@ class Trainer:
         self.training_config = config["training"]
 
         # Vocab
-        self.gloss_to_idx, self.idx_to_gloss, self.word_to_idx, self.idx_to_word = vocab
+        self.gloss_vocab = gloss_vocab
+        self.text_vocab = text_vocab
 
         # Saving dataloaders
         self.train_dl = train_dl
@@ -286,15 +291,11 @@ class Trainer:
                 )
 
             # Convert output tensors into strings
-            actual_gloss = decode_glosses(glosses.tolist(), self.gloss_to_idx, self.idx_to_gloss)
-            predicted_gloss = decode_glosses(encoder_out, self.gloss_to_idx, self.idx_to_gloss)
+            actual_gloss = self.gloss_vocab.decode_batch(glosses.tolist())
+            predicted_gloss = self.gloss_vocab.decode_batch(encoder_out)
 
-            actual_sentence = decode_sentences(
-                sentences.tolist(), self.word_to_idx, self.idx_to_word
-            )
-            predicted_sentence = decode_sentences(
-                decoder_out.tolist(), self.word_to_idx, self.idx_to_word
-            )
+            actual_sentence = self.text_vocab.decode_batch(sentences.tolist())
+            predicted_sentence = self.text_vocab.decode_batch(decoder_out.tolist())
 
             # Add to collection of sentences and glosses for WER calculation
             actual_glosses.extend(actual_gloss)
@@ -329,11 +330,6 @@ class Trainer:
             loss = recognition_loss + translation_loss
             losses += loss.item() * landmarks.size(0)
 
-        # print(f"Predicted Glosses: {predicted_glosses}")
-        # print(f"Actual Glosses: {actual_glosses}\n")
-        # print(f"Predicted Sentences: {predicted_sentences}")
-        # print(f"Actual Sentences: {actual_sentences}")
-
         # Calculating global average loss among all devices
         losses = torch.tensor(losses).to(self.gpu_id)
         recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
@@ -343,7 +339,24 @@ class Trainer:
         torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
         torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
 
-        # Gather all predicted samples with their targets in order to calculate global metrics
+        # Gather all samples with their targets from all workers in order to calculate global metrics
+        predicted_glosses, actual_glosses, predicted_sentences, actual_sentences = (
+            self.gather_samples(
+                predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
+            )
+        )
+
+        return (
+            recognition_losses / len(self.valid_dl.dataset),
+            translation_losses / len(self.valid_dl.dataset),
+            losses / len(self.valid_dl.dataset),
+            word_error_rate(predicted_glosses, actual_glosses) * 100.0,
+            word_error_rate(predicted_sentences, actual_sentences) * 100.0,
+        )
+
+    def gather_samples(
+        self, predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
+    ):
         world_size = dist.get_world_size()
         gathered_predicted_glosses = [None for _ in range(world_size)]
         gathered_actual_glosses = [None for _ in range(world_size)]
@@ -361,19 +374,7 @@ class Trainer:
         predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
         actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
 
-        # if self.gpu_id == 0:
-        #     print(f"Predicted Glosses: {predicted_glosses}\n")
-        #     print(f"Actual Glosses: {actual_glosses}\n")
-        #     print(f"Predicted Sentences: {predicted_sentences}\n")
-        #     print(f"Actual Sentences: {actual_sentences}\n")
-
-        return (
-            recognition_losses / len(self.valid_dl.dataset),
-            translation_losses / len(self.valid_dl.dataset),
-            losses / len(self.valid_dl.dataset),
-            word_error_rate(predicted_glosses, actual_glosses) * 100.0,
-            word_error_rate(predicted_sentences, actual_sentences) * 100.0,
-        )
+        return predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
 
     def _load_checkpoint(self):
         if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
@@ -426,7 +427,11 @@ class Trainer:
         )
 
     def _save_diagrams(self):
-        if self.gpu_id != 0 or len(self.train_loss_history) <= 0 or len(self.valid_loss_history) <= 0:
+        if (
+            self.gpu_id != 0
+            or len(self.train_loss_history) <= 0
+            or len(self.valid_loss_history) <= 0
+        ):
             return
 
         assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
@@ -447,11 +452,25 @@ class Trainer:
         plt.savefig(os.path.join(self.diagram_path, "figure.png"))
 
 
-def create_dataloaders(path: str, training_config: dict):
+def create_vocab(vocab_path: str):
+    assert os.path.exists(vocab_path), "Vocab path doesn't exist"
+    vocab = json.load(open(vocab_path))
+    glosses = vocab["glosses"]
+    words = vocab["words"]
+
+    gloss_vocab = GlossVocabulary(glosses=glosses)
+    text_vocab = TextVocabulary(words=words)
+
+    return gloss_vocab, text_vocab
+
+
+def create_dataloaders(
+    path: str, training_config: dict, gloss_vocab: GlossVocabulary, text_vocab: TextVocabulary
+):
     train = pd.read_csv(os.path.join(path, "train.csv"))
     valid = pd.read_csv(os.path.join(path, "dev.csv"))
     test = pd.read_csv(os.path.join(path, "test.csv"))
-    
+
     train_set = PhoenixDataset(
         df=train,
         vocab_path=os.path.join(path, "vocab.json"),
@@ -508,7 +527,7 @@ def create_dataloaders(path: str, training_config: dict):
         sampler=DistributedSampler(test_set),
     )
 
-    return train_set.get_vocab(), train_dl, valid_dl, test_dl
+    return train_dl, valid_dl, test_dl
 
 
 def start_training(rank: int, world_size: int, config: dict):
@@ -516,24 +535,15 @@ def start_training(rank: int, world_size: int, config: dict):
     model_config = config["model"]
     training_config = config["training"]
 
-    vocab, train_dl, valid_dl, test_dl = create_dataloaders(DATASET_PATH, training_config)
-    gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
-
-    assert "-" in gloss_to_idx
-    assert "<sos>" in word_to_idx
-    assert "<eos>" in word_to_idx
-
-    assert "<pad>" in gloss_to_idx
-    assert "<pad>" in word_to_idx
+    gloss_vocab, text_vocab = create_vocab(os.path.join(DATASET_PATH, "vocab.json"))
+    train_dl, valid_dl, test_dl = create_dataloaders(DATASET_PATH, training_config)
 
     # Creating the model
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
         num_decoders=model_config["num_decoders"],
-        gloss_to_idx=gloss_to_idx,
-        idx_to_gloss=idx_to_gloss,
-        word_to_idx=word_to_idx,
-        idx_to_word=idx_to_word,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
         d_model=model_config["d_model"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
@@ -554,7 +564,8 @@ def start_training(rank: int, world_size: int, config: dict):
 
     trainer = Trainer(
         model=model,
-        vocab=vocab,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
         train_dl=train_dl,
         valid_dl=valid_dl,
         test_dl=test_dl,
@@ -564,7 +575,7 @@ def start_training(rank: int, world_size: int, config: dict):
         config=config,
         gpu_id=rank,
     )
-    
+
     trainer.train()
     destroy_process_group()
 

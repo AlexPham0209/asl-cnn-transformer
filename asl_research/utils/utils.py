@@ -142,41 +142,10 @@ def pad_landmarks(batch: Tensor):
     mask = torch.zeros(len(batch), T)
 
     for i, landmarks in enumerate(batch):
-        res[i, :landmarks.size(dim=0), :] = landmarks
-        mask[i, :landmarks.size(dim=0)] = 1
-        
+        res[i, : landmarks.size(dim=0), :] = landmarks
+        mask[i, : landmarks.size(dim=0)] = 1
+
     return res, mask.unsqueeze(1).unsqueeze(2)
-
-
-def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
-    assert "<pad>" in word_to_idx
-    assert "<eos>" in word_to_idx
-    assert "<sos>" in word_to_idx
-
-    remove_special_tokens = (
-        lambda token: token != word_to_idx["<pad>"]
-        and token != word_to_idx["<eos>"]
-        and token != word_to_idx["<sos>"]
-    )
-
-    sentences = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in sequence
-    ]
-
-    return sentences
-
-
-def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
-    assert "<pad>" in gloss_to_idx
-
-    remove_padding = lambda x: x != gloss_to_idx["<pad>"]
-
-    sequence = [
-        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sample))])
-        for sample in sequence
-    ]
-    return sequence
 
 
 def calculate_bleu_scores(predicted: list, actual: list):

@@ -36,7 +36,7 @@ dependencies = [
     "torcheval",
     "pytorchvideo",
     "mediapipe; python_version >= '3.12'",
-    "mediapipe==0.10.9; python_version == '3.11'"
+    "mediapipe==0.10.9; python_version == '3.11'",
     "rouge_score",
     "nltk"
 ]

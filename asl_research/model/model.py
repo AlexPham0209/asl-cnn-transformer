@@ -13,6 +13,7 @@ from asl_research.utils.utils import (
     generate_square_subsequent_mask,
     generate_padding_mask_from_lengths,
 )
+from asl_research.vocab import GlossVocabulary, TextVocabulary
 
 
 class ASLModel(nn.Module):
@@ -20,10 +21,8 @@ class ASLModel(nn.Module):
         self,
         num_encoders: int = 2,
         num_decoders: int = 2,
-        gloss_to_idx: dict = {"-": 0, "<pad>": 1},
-        idx_to_gloss: dict = {0: "-", 1: "<pad>"},
-        word_to_idx: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
-        idx_to_word: dict = {0: "<sos>", 1: "<eos>", 2: "<pad>"},
+        gloss_vocab: GlossVocabulary = None,
+        text_vocab: TextVocabulary = None,
         d_model: int = 512,
         num_heads: int = 8,
         dropout: float = 0.1,
@@ -31,14 +30,8 @@ class ASLModel(nn.Module):
         super(ASLModel, self).__init__()
 
         # Vocab
-        self.gloss_to_idx = gloss_to_idx
-        self.idx_to_gloss = idx_to_gloss
-        self.word_to_idx = word_to_idx
-        self.idx_to_word = idx_to_word
-        
-        # Padding tokens
-        self.gloss_pad_token = gloss_to_idx["<pad>"]
-        self.word_pad_token = word_to_idx["<pad>"]
+        self.gloss_vocab = gloss_vocab
+        self.text_vocab = text_vocab
 
         self.d_model = d_model
 
@@ -64,10 +57,10 @@ class ASLModel(nn.Module):
             hidden_size=2048,
             dropout=dropout,
         )
-        self.ff_1 = nn.Linear(d_model, len(self.gloss_to_idx))
+        self.ff_1 = nn.Linear(d_model, self.gloss_vocab.get_size())
 
         # Decoder
-        self.trg_embedding = nn.Embedding(len(self.word_to_idx), embedding_dim=d_model)
+        self.trg_embedding = nn.Embedding(self.text_vocab.get_size(), embedding_dim=d_model)
         self.decoder = TransformerDecoder(
             num_layers=num_decoders,
             d_model=d_model,
@@ -75,12 +68,12 @@ class ASLModel(nn.Module):
             hidden_size=2048,
             dropout=dropout,
         )
-        self.ff_2 = nn.Linear(d_model, len(self.word_to_idx))
+        self.ff_2 = nn.Linear(d_model, self.text_vocab.get_size())
         self._init_weights()
 
     def forward(self, src: Tensor, trg: Tensor, src_lengths: Optional[Tensor] = None):
         src, src_mask, src_lengths = self.src_embedding(src, src_lengths)
-        trg_mask = generate_square_subsequent_mask(trg, self.word_pad_token)
+        trg_mask = generate_square_subsequent_mask(trg, self.text_vocab.pad_token)
 
         src = src * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
@@ -122,23 +115,25 @@ class ASLModel(nn.Module):
         encoded = torch.argmax(encoded, dim=-1).tolist()
         encoded = [[gloss for gloss, _ in itertools.groupby(sample)] for sample in encoded]
         encoded = [
-            list(filter(lambda gloss: gloss != self.gloss_to_idx["-"], sample))
+            list(filter(lambda gloss: gloss != self.gloss_vocab.blank_token, sample))
             for sample in encoded
         ]
 
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
-            .fill_(self.word_to_idx["<pad>"])
+            .fill_(self.text_vocab.pad_token)
             .type(torch.long)
             .to(src.device)
         )
         # Fill first column (or the beginning of the sequences) with <SOS> tokens
-        sequence[:, 0] = self.word_to_idx["<sos>"]
+        sequence[:, 0] = self.text_vocab.sos_token
 
         for t in range(1, max_len):
             out = sequence[:, :t]
-            trg_mask = generate_square_subsequent_mask(out, self.word_pad_token).to(src.device)
+            trg_mask = generate_square_subsequent_mask(out, self.text_vocab.pad_token).to(
+                src.device
+            )
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out) * math.sqrt(self.d_model)

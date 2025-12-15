@@ -140,7 +140,11 @@ if __name__ == "__main__":
     process_videos("dev")
     process_videos("test")
 
-    print(np.load("data/processed/phoenixweather2014t/features/landmarks/dev/01April_2010_Thursday_heute-6697.npy"))
+    print(
+        np.load(
+            "data/processed/phoenixweather2014t/features/landmarks/dev/01April_2010_Thursday_heute-6697.npy"
+        )
+    )
 
 # print(
 #     np.load(
