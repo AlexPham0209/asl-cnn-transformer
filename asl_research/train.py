@@ -469,7 +469,7 @@ def create_vocab(vocab_path: str):
     return gloss_vocab, text_vocab
 
 
-def create_dataloaders(
+def create_datasets(
     training_config: dict, gloss_vocab: GlossVocabulary, text_vocab: TextVocabulary
 ):
     train = pd.read_csv(os.path.join(DATASET_PATH, "train.csv")).head(n=20)
@@ -509,6 +509,9 @@ def create_dataloaders(
         is_train=False,
     )
 
+    return train_set, valid_set, test_set
+
+def create_dataloaders(training_config, train_set, valid_set, test_set):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
@@ -544,7 +547,8 @@ def start_training(rank: int, world_size: int, config: dict):
     training_config = config["training"]
 
     gloss_vocab, text_vocab = create_vocab(os.path.join(DATASET_PATH, "vocab.json"))
-    train_dl, valid_dl, test_dl = create_dataloaders(training_config, gloss_vocab, text_vocab)
+    train_set, valid_set, test_set = create_datasets(training_config, gloss_vocab, text_vocab)
+    train_dl, valid_dl, test_dl = create_dataloaders(training_config, train_set, valid_set, test_set)
     
     # Creating the model
     model = ASLModel(
