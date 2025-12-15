@@ -173,9 +173,9 @@ class PoseEmbedding(nn.Module):
     ):
         super(PoseEmbedding, self).__init__()
 
-        # self.conv_1 = Conv1DBlock(in_channels=in_channels, out_channels=hidden_size, kernel_size=5)
-        # self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
-        self.ff = nn.Linear(in_channels, d_model)
+        self.conv_1 = Conv1DBlock(in_channels=in_channels, out_channels=hidden_size, kernel_size=5)
+        self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
+        self.ff = nn.Linear(hidden_size, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=dropout)
@@ -192,8 +192,8 @@ class PoseEmbedding(nn.Module):
         """
         # Merge batches and time into the first dimension
         # Allows for the CNN to be applied to every temporal slice
-        # x, lengths = self.conv_1(x, lengths)
-        # x, lengths = self.conv_2(x, lengths)
+        x, lengths = self.conv_1(x, lengths)
+        x, lengths = self.conv_2(x, lengths)
 
         mask = generate_padding_mask_from_lengths(lengths).to(lengths.device)
         x = self.ff(x)

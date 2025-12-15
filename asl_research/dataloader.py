@@ -101,9 +101,9 @@ class PhoenixDataset(Dataset):
 
         # Getting landmarks data (time, 225) and standardizing it
         landmarks = torch.tensor(np.load(landmark_path))
-        if self.random_sampling and self.is_train:
+        if self.random_sampling:
             landmarks = landmarks[:: self.sampling_ratio]
-
+        
         return (
             landmarks,
             gloss_tokens,

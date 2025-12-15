@@ -6,7 +6,7 @@ import torch
 
 class TextVocabulary:
     def __init__(self, words: str):
-        self.words = self.words
+        self.words = words
 
         # Create dictionaries to convert string tokens into their ids and vice versa
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
