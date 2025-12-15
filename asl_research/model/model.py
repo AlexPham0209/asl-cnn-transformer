@@ -20,7 +20,6 @@ class ASLModel(nn.Module):
         self,
         num_encoders: int = 2,
         num_decoders: int = 2,
-        pretrained_embedding: str = "efficientnet_b0",
         gloss_to_idx: dict = {"-": 0, "<pad>": 1},
         idx_to_gloss: dict = {0: "-", 1: "<pad>"},
         word_to_idx: dict = {"<sos>": 0, "<eos>": 1, "<pad>": 2},
@@ -36,7 +35,7 @@ class ASLModel(nn.Module):
         self.idx_to_gloss = idx_to_gloss
         self.word_to_idx = word_to_idx
         self.idx_to_word = idx_to_word
-
+        
         # Padding tokens
         self.gloss_pad_token = gloss_to_idx["<pad>"]
         self.word_pad_token = word_to_idx["<pad>"]

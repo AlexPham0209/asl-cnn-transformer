@@ -19,18 +19,18 @@ training:
 
   # File path locations
   save_path: 'models'
-  file_name: 'best5'
-  load_path: 'models/best5.pt'
+  file_name: 'best_landmarks'
+  load_path: ''
   diagram_path: 'reports/figures'
 
   # Weights used for joint loss
   recognition_weight: 1.0
   translation_weight: 1.0
   
-  # Random splitting seed and ration
-  use_already_split_sets: True
-  seed: 29
-  split: [0.8, 0.1, 0.1]
+  # # Random splitting seed and ration
+  # use_already_split_sets: True
+  # seed: 29
+  # split: [0.8, 0.1, 0.1]
 
   # Early Stopping
   patience: 8

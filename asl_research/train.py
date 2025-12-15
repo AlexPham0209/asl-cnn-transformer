@@ -15,7 +15,6 @@ from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
-from torcheval.metrics.functional import rou
 
 from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
 import os
@@ -33,7 +32,7 @@ import torch.distributed as dist
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
-PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
+DATASET_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 # torch.autograd.set_detect_anomaly(True)
 
 
@@ -427,7 +426,7 @@ class Trainer:
         )
 
     def _save_diagrams(self):
-        if self.gpu_id != 0:
+        if self.gpu_id != 0 or len(self.train_loss_history) <= 0 or len(self.valid_loss_history) <= 0:
             return
 
         assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
@@ -449,30 +448,15 @@ class Trainer:
 
 
 def create_dataloaders(path: str, training_config: dict):
-    # Splitting dataset into training, validation, and testing sets
-    train, test, valid = None, None, None
-
-    if training_config["use_already_split_sets"]:
-        train = pd.read_csv(os.path.join(path, "train.csv"))
-        valid = pd.read_csv(os.path.join(path, "dev.csv"))
-        test = pd.read_csv(os.path.join(path, "test.csv"))
-    else:
-        df = pd.read_csv(os.path.join(path, "dataset.csv"))
-        train_size, valid_size, test_size = training_config["split"]
-        size = valid_size + test_size
-        test_size /= size
-        train, test = train_test_split(
-            df, train_size=train_size, random_state=training_config["seed"]
-        )
-        test, valid = train_test_split(
-            test, test_size=test_size, random_state=training_config["seed"]
-        )
-
+    train = pd.read_csv(os.path.join(path, "train.csv"))
+    valid = pd.read_csv(os.path.join(path, "dev.csv"))
+    test = pd.read_csv(os.path.join(path, "test.csv"))
+    
     train_set = PhoenixDataset(
         df=train,
-        root_dir=PROCESSED_PATH,
+        vocab_path=os.path.join(path, "vocab.json"),
         sampling_ratio=training_config["sampling_ratio"],
-        random_subsampling=training_config["random_sampling"],
+        random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
         masking_ratio=training_config["masking_ratio"],
         is_train=True,
@@ -480,9 +464,9 @@ def create_dataloaders(path: str, training_config: dict):
 
     valid_set = PhoenixDataset(
         df=valid,
-        root_dir=PROCESSED_PATH,
+        vocab_path=os.path.join(path, "vocab.json"),
         sampling_ratio=training_config["sampling_ratio"],
-        random_subsampling=training_config["random_sampling"],
+        random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
         masking_ratio=training_config["masking_ratio"],
         is_train=False,
@@ -490,9 +474,9 @@ def create_dataloaders(path: str, training_config: dict):
 
     test_set = PhoenixDataset(
         df=test,
-        root_dir=PROCESSED_PATH,
+        vocab_path=os.path.join(path, "vocab.json"),
         sampling_ratio=training_config["sampling_ratio"],
-        random_subsampling=training_config["random_sampling"],
+        random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
         masking_ratio=training_config["masking_ratio"],
         is_train=False,
@@ -532,7 +516,7 @@ def start_training(rank: int, world_size: int, config: dict):
     model_config = config["model"]
     training_config = config["training"]
 
-    vocab, train_dl, valid_dl, test_dl = create_dataloaders(PROCESSED_PATH, training_config)
+    vocab, train_dl, valid_dl, test_dl = create_dataloaders(DATASET_PATH, training_config)
     gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = vocab
 
     assert "-" in gloss_to_idx
@@ -546,7 +530,6 @@ def start_training(rank: int, world_size: int, config: dict):
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
         num_decoders=model_config["num_decoders"],
-        pretrained_embedding=model_config["pretrained_embedding"],
         gloss_to_idx=gloss_to_idx,
         idx_to_gloss=idx_to_gloss,
         word_to_idx=word_to_idx,
@@ -581,7 +564,7 @@ def start_training(rank: int, world_size: int, config: dict):
         config=config,
         gpu_id=rank,
     )
-
+    
     trainer.train()
     destroy_process_group()
 

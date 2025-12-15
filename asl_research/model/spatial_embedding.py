@@ -171,10 +171,10 @@ class PoseEmbedding(nn.Module):
         hidden_size: int = 1024,
         dropout: float = 0.1,
     ):
-        super(SpatialEmbedding, self).__init__()
+        super(PoseEmbedding, self).__init__()
 
-        self.conv_1 = Conv1DBlock(in_channels=in_channels, out_channels=hidden_size, kernel_size=5)
-        self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
+        # self.conv_1 = Conv1DBlock(in_channels=in_channels, out_channels=hidden_size, kernel_size=5)
+        # self.conv_2 = Conv1DBlock(in_channels=hidden_size, out_channels=hidden_size, kernel_size=3)
         self.ff = nn.Linear(in_channels, d_model)
         self.bn = MaskedBatchNorm(num_features=d_model)
         self.relu = nn.ReLU()

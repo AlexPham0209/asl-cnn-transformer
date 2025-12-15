@@ -217,26 +217,26 @@ def main():
     if not os.path.exists(PROCESSED_VIDEO_PATH):
         os.mkdir(PROCESSED_VIDEO_PATH)
 
-    # create_dataset(
-    #     video_path(train),
-    #     [key["gloss"].upper().strip() for key in train],
-    #     [key["text"].lower().replace(".", "").strip() for key in train],
-    #     "train",
-    # )
+    create_dataset(
+        video_path(train),
+        [key["gloss"].upper().strip() for key in train],
+        [key["text"].lower().replace(".", "").strip() for key in train],
+        "train",
+    )
+    
+    create_dataset(
+        video_path(dev),
+        [key["gloss"].upper().strip() for key in dev],
+        [key["text"].lower().replace(".", "").strip() for key in dev],
+        "dev",
+    )
 
-    # create_dataset(
-    #     video_path(dev),
-    #     [key["gloss"].upper().strip() for key in dev],
-    #     [key["text"].lower().replace(".", "").strip() for key in dev],
-    #     "dev",
-    # )
-
-    # create_dataset(
-    #     video_path(test),
-    #     [key["gloss"].upper().strip() for key in test],
-    #     [key["text"].lower().replace(".", "").strip() for key in test],
-    #     "test",
-    # )
+    create_dataset(
+        video_path(test),
+        [key["gloss"].upper().strip() for key in test],
+        [key["text"].lower().replace(".", "").strip() for key in test],
+        "test",
+    )
 
     create_vocab(glosses, texts)
 

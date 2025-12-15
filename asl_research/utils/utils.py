@@ -142,9 +142,9 @@ def pad_landmarks(batch: Tensor):
     mask = torch.zeros(len(batch), T)
 
     for i, landmarks in enumerate(batch):
-        res[i, : landmarks.size(dim=0), :] = landmarks
-        mask[i, : landmarks.size(dim=0)] = 1
-
+        res[i, :landmarks.size(dim=0), :] = landmarks
+        mask[i, :landmarks.size(dim=0)] = 1
+        
     return res, mask.unsqueeze(1).unsqueeze(2)
 
 
