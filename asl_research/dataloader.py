@@ -142,7 +142,7 @@ class PhoenixDataset(Dataset):
                 continue
 
             frames.append(read_file(frame))
-        
+
         return torch.stack(decode_jpeg(frames), dim=0)
 
     @staticmethod

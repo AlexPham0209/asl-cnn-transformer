@@ -17,7 +17,7 @@ from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
+from asl_research.utils.utils import generate_padding_mask
 import os
 from torch.nn.parallel import DistributedDataParallel
 from torch.distributed import init_process_group, destroy_process_group
@@ -112,8 +112,8 @@ class Trainer:
         self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
 
         # Creating the losses used for recognition and translation
-        self.ctc_loss = nn.CTCLoss(blank=self.gloss_to_idx["-"], zero_infinity=True).to(gpu_id)
-        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.word_to_idx["<pad>"]).to(
+        self.ctc_loss = nn.CTCLoss(blank=self.gloss_vocab.blank_token, zero_infinity=True).to(gpu_id)
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.text_vocab.pad_token).to(
             gpu_id
         )
 
@@ -347,6 +347,11 @@ class Trainer:
             )
         )
 
+        if self.gpu_id == 0:
+            print(f"Predicted Sentences: {predicted_sentences}")
+            print(f"Actual Sentences: {actual_sentences}")
+            print(f"Length of Actual Sentences: {len(actual_sentences)}")
+
         return (
             recognition_losses / len(self.valid_dl.dataset),
             translation_losses / len(self.valid_dl.dataset),
@@ -461,20 +466,21 @@ def create_vocab(vocab_path: str):
 
     gloss_vocab = GlossVocabulary(glosses=glosses)
     text_vocab = TextVocabulary(words=words)
-
+    
     return gloss_vocab, text_vocab
 
 
-def create_dataloaders(
-    path: str, training_config: dict, gloss_vocab: GlossVocabulary, text_vocab: TextVocabulary
+def create_datasets(
+    training_config: dict, gloss_vocab: GlossVocabulary, text_vocab: TextVocabulary
 ):
-    train = pd.read_csv(os.path.join(path, "train.csv"))
-    valid = pd.read_csv(os.path.join(path, "dev.csv"))
-    test = pd.read_csv(os.path.join(path, "test.csv"))
+    train = pd.read_csv(os.path.join(DATASET_PATH, "train.csv")).head(n=20)
+    valid = pd.read_csv(os.path.join(DATASET_PATH, "dev.csv"))
+    test = pd.read_csv(os.path.join(DATASET_PATH, "test.csv"))
 
     train_set = PhoenixDataset(
         df=train,
-        vocab_path=os.path.join(path, "vocab.json"),
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
         sampling_ratio=training_config["sampling_ratio"],
         random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
@@ -484,7 +490,8 @@ def create_dataloaders(
 
     valid_set = PhoenixDataset(
         df=valid,
-        vocab_path=os.path.join(path, "vocab.json"),
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
         sampling_ratio=training_config["sampling_ratio"],
         random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
@@ -494,7 +501,8 @@ def create_dataloaders(
 
     test_set = PhoenixDataset(
         df=test,
-        vocab_path=os.path.join(path, "vocab.json"),
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
         sampling_ratio=training_config["sampling_ratio"],
         random_sampling=training_config["random_sampling"],
         random_masking=training_config["random_masking"],
@@ -502,6 +510,9 @@ def create_dataloaders(
         is_train=False,
     )
 
+    return train_set, valid_set, test_set
+
+def create_dataloaders(training_config, train_set, valid_set, test_set):
     # Creating dataloaders for each subset
     train_dl = DataLoader(
         train_set,
@@ -537,8 +548,9 @@ def start_training(rank: int, world_size: int, config: dict):
     training_config = config["training"]
 
     gloss_vocab, text_vocab = create_vocab(os.path.join(DATASET_PATH, "vocab.json"))
-    train_dl, valid_dl, test_dl = create_dataloaders(DATASET_PATH, training_config)
-
+    train_set, valid_set, test_set = create_datasets(training_config, gloss_vocab, text_vocab)
+    train_dl, valid_dl, test_dl = create_dataloaders(training_config, train_set, valid_set, test_set)
+    
     # Creating the model
     model = ASLModel(
         num_encoders=model_config["num_encoders"],
@@ -568,8 +580,8 @@ def start_training(rank: int, world_size: int, config: dict):
         gloss_vocab=gloss_vocab,
         text_vocab=text_vocab,
         train_dl=train_dl,
-        valid_dl=valid_dl,
-        test_dl=test_dl,
+        valid_dl=train_dl,
+        test_dl=train_dl,
         optimizer=optimizer,
         scheduler=scheduler,
         early_stopping=early_stopping,
