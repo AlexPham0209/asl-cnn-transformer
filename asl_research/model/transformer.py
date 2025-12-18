@@ -88,7 +88,16 @@ class BaseTransformer(nn.Module):
             out = self.softmax(self.ff(out))
 
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
-
+            next_word = torch.where(
+                (sequence == trg_vocab["<eos>"]).any(dim=-1),
+                trg_vocab["<eos>"],
+                next_word,
+            )
+            
+            # Concatenate the predicted token to the output sequence
+            if (next_word == trg_vocab["<eos>"]).all():
+                break
+            
             # Concatenate the predicted token to the output sequence
             sequence[:, t] = next_word
 

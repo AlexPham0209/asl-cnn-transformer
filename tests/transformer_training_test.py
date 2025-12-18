@@ -42,6 +42,7 @@ def train_epoch(
         trg_input = trg[:, :-1]
         src_mask = generate_padding_mask(src, pad_token)
         src_mask_2 = generate_padding_mask_from_lengths(src_lengths)
+        assert torch.equal(src_mask, src_mask_2)
 
         # Feed the inputs through the translation model
         # We are using teacher forcing, a strategy feeds the ground truth or the expected target sequence into the model
@@ -49,21 +50,21 @@ def train_epoch(
         out = model(
             src,
             trg_input,
-            src_mask_2
+            src_mask
         )
         
         actual = out.reshape(-1, out.shape[-1])
         expected = trg[:, 1:].reshape(-1)
         
         loss = criterion(actual, expected)
-        losses += loss.item()
+        losses += loss.item() * src.size(0)
         loss.backward()
 
         # Apply the gradient vector on the trainable parameters in the model and reset the gradients
         optimizer.step()
         optimizer.zero_grad()
 
-    losses /= len(data)
+    losses /= len(data.dataset)
     return losses
 
 class TestDataset(Dataset):
@@ -113,12 +114,12 @@ def collate_fn(batch):
 
 
 def test_transformer_training():
-    LENGTH = 50
-    EPOCHS = 200
-    EXAMPLES = 50
+    LENGTH = 20
+    EPOCHS = 500
+    EXAMPLES = 10
     
     # Creating a synthetic corpus using words in the words string
-    max_sentence_length = 15
+    max_sentence_length = 8
     words = "the of and to a home words where apple orange minecraft penis hello world alex who what when damn"
     count = Counter(words.split())
 
@@ -174,7 +175,7 @@ def test_transformer_training():
     encoded = pad_sequence(encoded, batch_first=True, padding_value=word_to_idx["<pad>"])
     src_mask = generate_padding_mask(encoded, word_to_idx["<pad>"]).to(encoded.device)
     out = transformer.greedy_decode(encoded, src_mask, trg_vocab=word_to_idx, max_len=20)
-    
+            
     preds = []
     targets = []
 

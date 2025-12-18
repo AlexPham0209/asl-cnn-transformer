@@ -21,6 +21,7 @@ class ASLModel(nn.Module):
         self,
         num_encoders: int = 2,
         num_decoders: int = 2,
+        pretrained_embedding: str = "efficientnet_b0",
         gloss_vocab: GlossVocabulary = None,
         text_vocab: TextVocabulary = None,
         d_model: int = 512,
@@ -36,19 +37,19 @@ class ASLModel(nn.Module):
         self.d_model = d_model
 
         # Encoder
-        # self.src_embedding = SpatialEmbedding(
-        #     d_model=d_model,
-        #     hidden_size=1024,
-        #     dropout=dropout,
-        #     pretrained_model=pretrained_embedding,
-        # )
-
-        self.src_embedding = PoseEmbedding(
-            in_channels=225,
+        self.src_embedding = SpatialEmbedding(
             d_model=d_model,
             hidden_size=1024,
             dropout=dropout,
+            pretrained_model=pretrained_embedding,
         )
+
+        # self.src_embedding = PoseEmbedding(
+        #     in_channels=225,
+        #     d_model=d_model,
+        #     hidden_size=1024,
+        #     dropout=dropout,
+        # )
 
         self.encoder = TransformerEncoder(
             num_layers=num_encoders,
@@ -105,7 +106,7 @@ class ASLModel(nn.Module):
         # Convert the sequences from (sequence_size) to (batch, sequence_size)
         src = src.unsqueeze(0) if src.dim() <= 1 else src
         src, src_mask, _ = self.src_embedding(src, src_lengths)
-
+        
         # Feed the source sequence and its mask into the transformer's encoder
         memory = self.encoder(src * math.sqrt(self.d_model), src_mask)
 
@@ -118,7 +119,7 @@ class ASLModel(nn.Module):
             list(filter(lambda gloss: gloss != self.gloss_vocab.blank_token, sample))
             for sample in encoded
         ]
-
+        
         # Creates the sequence tensor to be feed into the decoder: [["<sos>"]]
         sequence = (
             torch.ones(src.shape[0], max_len)
@@ -140,7 +141,21 @@ class ASLModel(nn.Module):
             out = self.decoder(out, memory, trg_mask, src_mask)
             out = softmax(self.ff_2(out), dim=-1)
 
+            # Get the largest index of the entry that has the largest probability
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
+
+            # If the sequence has an <EOS> token in it, we do not use the generated next token, but replace it with an <EOS> token
+            next_word = torch.where(
+                (sequence == self.text_vocab.eos_token).any(dim=-1),
+                self.text_vocab.eos_token,
+                next_word
+            )
+            
+            # Stop generating tokens once all sequences reached their end or have an end token
+            if (next_word == self.text_vocab.eos_token).all():
+                break
+            
+            # Concatenate the predicted token to the output sequence
             sequence[:, t] = next_word
 
         return encoded, sequence

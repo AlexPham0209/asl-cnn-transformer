@@ -12,9 +12,9 @@ class TextVocabulary:
         self.word_to_idx = {word: i for i, word in enumerate(self.words)}
         self.idx_to_word = {i: word for i, word in enumerate(self.words)}
 
-        assert "<pad>" in self.word_to_idx
-        assert "<eos>" in self.word_to_idx
-        assert "<sos>" in self.word_to_idx
+        assert "<pad>" in self.word_to_idx, "<PAD> token doesn't exist in text vocab"
+        assert "<eos>" in self.word_to_idx, "<EOS> token doesn't exist in text vocab"
+        assert "<sos>" in self.word_to_idx, "<SOS> token doesn't exist in text vocab"
 
         self.sos_token = self.word_to_idx["<sos>"]
         self.eos_token = self.word_to_idx["<eos>"]
@@ -31,10 +31,6 @@ class TextVocabulary:
         return torch.stack([self.tokenize(sentence) for sentence in sentences], dim=0)
 
     def decode(self, sentence: list):
-        assert "<pad>" in self.word_to_idx
-        assert "<eos>" in self.word_to_idx
-        assert "<sos>" in self.word_to_idx
-
         sentence = list(filter(self.remove_special_tokens, sentence))
         return " ".join([self.idx_to_word[token] for token in sentence])
 
@@ -46,7 +42,7 @@ class TextVocabulary:
 
     def get_size(self):
         return len(self.word_to_idx)
-
+    
 
 class GlossVocabulary:
     def __init__(self, glosses: list):
@@ -56,12 +52,12 @@ class GlossVocabulary:
         self.gloss_to_idx = {gloss: i for i, gloss in enumerate(self.glosses)}
         self.idx_to_gloss = {i: gloss for i, gloss in enumerate(self.glosses)}
 
-        assert "<pad>" in self.gloss_to_idx
-        assert "-" in self.gloss_to_idx
+        assert "<pad>" in self.gloss_to_idx, "<PAD> token doesn't exist in gloss vocab"
+        assert "-" in self.gloss_to_idx, "Blank token doesn't exist in gloss vocab"
 
         self.blank_token = self.gloss_to_idx["-"]
         self.pad_token = self.gloss_to_idx["<pad>"]
-
+    
     def tokenize(self, gloss: str):
         return torch.tensor([self.gloss_to_idx[word] for word in gloss.split()])
 

@@ -201,16 +201,16 @@ class Trainer:
         translation_losses = 0.0
         dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
 
-        for landmarks, landmark_lengths, glosses, gloss_lengths, sentences, _ in dl:
-            landmarks = landmarks.to(self.gpu_id)
-            landmark_lengths = landmark_lengths.to(self.gpu_id)
+        for videos, video_lengths, glosses, gloss_lengths, sentences, _ in dl:
+            videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
             sentences = sentences.to(self.gpu_id)
 
             self.optimizer.zero_grad()
             encoder_out, decoder_out, lengths = self.model(
-                landmarks, sentences[:, :-1], landmark_lengths
+                videos, sentences[:, :-1], video_lengths
             )
 
             # Encoder loss
@@ -228,11 +228,11 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item() * landmarks.size(0)
-            translation_losses += translation_loss.item() * landmarks.size(0)
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
 
             loss = recognition_loss + translation_loss
-            losses += loss.item() * landmarks.size(0)
+            losses += loss.item() * videos.size(0)
 
             loss.backward()
 
@@ -273,9 +273,9 @@ class Trainer:
 
         dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"Validating")
 
-        for landmarks, landmark_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
-            landmarks = landmarks.to(self.gpu_id)
-            landmark_lengths = landmark_lengths.to(self.gpu_id)
+        for videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
+            videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
 
             glosses = glosses.to(self.gpu_id)
             gloss_lengths = gloss_lengths.to(self.gpu_id)
@@ -283,13 +283,14 @@ class Trainer:
             sentences = sentences.to(self.gpu_id)
             sentence_lengths = sentence_lengths.to(self.gpu_id)
 
+            # Greedy decode the sequences 
             with torch.no_grad():
                 encoder_out, decoder_out = self.model.module.greedy_decode(
-                    landmarks,
-                    src_lengths=landmark_lengths,
+                    videos,
+                    src_lengths=video_lengths,
                     max_len=torch.max(sentence_lengths).item(),
                 )
-
+            
             # Convert output tensors into strings
             actual_gloss = self.gloss_vocab.decode_batch(glosses.tolist())
             predicted_gloss = self.gloss_vocab.decode_batch(encoder_out)
@@ -306,9 +307,9 @@ class Trainer:
 
             with torch.no_grad():
                 encoder_out, decoder_out, lengths = self.model(
-                    landmarks, sentences[:, :-1], landmark_lengths
+                    videos, sentences[:, :-1], video_lengths
                 )
-
+            
             # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
             T, N, C = encoder_out.shape
@@ -324,11 +325,11 @@ class Trainer:
             translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
             # Calculating the joint loss
-            recognition_losses += recognition_loss.item() * landmarks.size(0)
-            translation_losses += translation_loss.item() * landmarks.size(0)
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
 
             loss = recognition_loss + translation_loss
-            losses += loss.item() * landmarks.size(0)
+            losses += loss.item() * videos.size(0)
 
         # Calculating global average loss among all devices
         losses = torch.tensor(losses).to(self.gpu_id)

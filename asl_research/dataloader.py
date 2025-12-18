@@ -100,12 +100,15 @@ class PhoenixDataset(Dataset):
         word_tokens = self.text_vocab.tokenize(sentence)
 
         # Getting landmarks data (time, 225) and standardizing it
-        landmarks = torch.tensor(np.load(landmark_path))
-        if self.random_sampling and self.is_train:
-            landmarks = landmarks[:: self.sampling_ratio]
+        # landmarks = torch.tensor(np.load(landmark_path))
+        # if self.random_sampling and self.is_train:
+        #     landmarks = landmarks[:: self.sampling_ratio]
+
+        video = self.read_video(video_path)
+        video = self.train_transform(video) if self.is_train else self.valid_transform(video)
 
         return (
-            landmarks,
+            video,
             gloss_tokens,
             word_tokens,
             self.gloss_vocab.pad_token,
@@ -139,7 +142,7 @@ class PhoenixDataset(Dataset):
                 continue
 
             frames.append(read_file(frame))
-
+        
         return torch.stack(decode_jpeg(frames), dim=0)
 
     @staticmethod

@@ -53,7 +53,7 @@ def generate_padding_mask(x: Tensor, pad_token: int):
 
     N, sequence_length = x.shape
     return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(x.device)
-
+    
 
 def generate_padding_mask_from_lengths(
     lengths: Optional[Tensor] = None, max_length: Optional[int] = None

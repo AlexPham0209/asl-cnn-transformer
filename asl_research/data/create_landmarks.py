@@ -64,7 +64,7 @@ def get_features(results):
     )
     pose = extract_landmarks(results.pose_landmarks) if results.pose_landmarks else torch.zeros(99)
     feature = torch.cat((left_hand, right_hand, pose))
-
+    
     return feature
 
 
@@ -122,8 +122,7 @@ def process_videos(folder):
             features = features.cpu().detach().numpy()
             np.save(os.path.join(PATH, folder, f"{name}.npy"), features)
 
-
-if __name__ == "__main__":
+def main():
     # Creating features folder
     if not os.path.exists(FEATURES_PATH):
         os.mkdir(FEATURES_PATH)
@@ -131,23 +130,11 @@ if __name__ == "__main__":
     if not os.path.exists(LANDMARKS_PATH):
         os.mkdir(FEATURES_PATH)
 
-    print(f"Number of CPUs: {cpu_count()}")
-    # Process train, dev, and test videos so they are matrices of landmark data
-    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "train"))))
-    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "dev"))))
-    # print(len(os.listdir(os.path.join(LANDMARKS_PATH, "test"))))
+    # Process for all subsets of the data
     process_videos("train")
     process_videos("dev")
     process_videos("test")
 
-    print(
-        np.load(
-            "data/processed/phoenixweather2014t/features/landmarks/dev/01April_2010_Thursday_heute-6697.npy"
-        )
-    )
 
-# print(
-#     np.load(
-#         "data\\processed\\phoenixweather2014t\\features\\landmarks\\train\\01April_2010_Thursday_heute-6694.mp4.npy"
-#     ).shape
-# )
+if __name__ == "__main__":
+    main()
