@@ -1,42 +1,57 @@
 model:
-  num_encoders: 2
-  num_decoders: 2
+  num_encoders: 3
+  num_decoders: 3
+  pretrained_embedding: "efficientnet_b0"
 
-  d_model: 256
+  d_model: 512
+  hidden_size: 1024
   num_heads: 8
   dropout: 0.3
 
 training:
   # Basic hyperparameters
-  epochs: 150
-  batch_size: 32
-  lr: 1e-4
-    
+  epochs: 200
+  batch_size: 5
+  lr: 1e-3
+  weight_decay: 5e-4
+  save_every: 25
+  validate_every: 1
+
   # File path locations
   save_path: 'models'
-  file_name: 'best'
-  load_path: 'models/best.pt'
-  
-  # Whether to use joint loss or not
-  train_recognition: true
-  train_translation: false
+  file_name: 'best_landmarks'
+  load_path: ''
+  diagram_path: 'reports/figures'
 
   # Weights used for joint loss
   recognition_weight: 1.0
   translation_weight: 1.0
   
-  # Random splitting seed and ration
-  seed: 29
-  split: [0.8, 0.1, 0.1]
+  # # Random splitting seed and ration
+  # use_already_split_sets: True
+  # seed: 29
+  # split: [0.8, 0.1, 0.1]
 
   # Early Stopping
-  patience: 3
+  patience: 8
   delta: 0.01
 
+  # Scheduler
+  T_max: 10
+
+  # Gradient clipping
+  max_norm: 1.0
+    
   # Misc.
-  num_workers: 16
-  num_frames: 60
+  num_workers: 1
+  
+  # Dataset
+  sampling_ratio: 2
+  masking_ratio: 0.9
+  random_sampling: True
+  random_masking: True
+  
 
 testing:
-  load_path: 'models/best.pt'
+  load_path: 'models/best5.pt'
   beam_search: false

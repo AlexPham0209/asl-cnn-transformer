@@ -2,44 +2,10 @@ from typing import Optional
 
 import torch
 from torch import Tensor
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def split(x: Tensor, num_heads: int):
-    """
-    Splits the tensor into num_heads
-
-    Args:
-         x (Tensor): Original tensor (batch_size, sequence_size, d_model)
-
-    Returns:
-        Tensor: Tensor that is split into n heads
-        (batch_size, num_heads, sequence_size, d_model // num_heads)
-    """
-    # Shape: (batch_size, sequence_length, d_model)
-    N, length, _ = x.shape
-
-    # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
-    return x.reshape(N, length, num_heads, -1).transpose(1, 2)
-
-
-def concat(x: Tensor):
-    """
-    Concatenate the tensor's heads together
-
-    Args:
-        x (Tensor): Original tensor (batch_size, num_heads, sequence_size, d_model // num_heads)
-
-    Returns:
-        Tensor: Tensor that is split into n heads (batch_size, sequence_size, d_model)
-    """
-
-    N, _, length, _ = x.shape
-
-    # Transpose into (batch_size, sequence_length, num_heads, d_model)
-    # Then, reshape into (batch_size, sequence_length, d_model)
-    return x.transpose(1, 2).reshape(N, length, -1)
+from torch.nn.utils.rnn import pad_sequence
+from rouge_score import rouge_scorer
+from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
+import nltk
 
 
 def generate_square_subsequent_mask(x: Tensor, pad_token: int):
@@ -55,11 +21,21 @@ def generate_square_subsequent_mask(x: Tensor, pad_token: int):
     """
 
     N, sequence_length = x.shape
+    # Causal mask: (1, 1, sequence_size, sequence_size)
     causal_mask = (
-        torch.tril(torch.ones((N, 1, sequence_length, sequence_length))).bool().to(DEVICE)
+        torch.tril(torch.ones(sequence_length, sequence_length))
+        .unsqueeze(0)
+        .unsqueeze(1)
+        .bool()
+        .to(x.device)
     )
-    padding_mask = generate_padding_mask(x, pad_token).bool().to(DEVICE)
 
+    # Padding mask: (batch_size, 1, 1, sequence_size)
+    padding_mask = generate_padding_mask(x, pad_token).to(x.device)
+
+    # Uses Bitwise And operation to combine the causal and padding masks
+    # For an entry, ij, if it is not a padding mask AND if it is not a future token,
+    # then we don't mask this entry and we allow the attention module to pay attention to it
     mask = causal_mask & padding_mask
     return mask
 
@@ -76,10 +52,12 @@ def generate_padding_mask(x: Tensor, pad_token: int):
     """
 
     N, sequence_length = x.shape
-    return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
+    return (x != pad_token).unsqueeze(1).unsqueeze(2).bool().to(x.device)
+    
 
-
-def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = None):
+def generate_padding_mask_from_lengths(
+    lengths: Optional[Tensor] = None, max_length: Optional[int] = None
+):
     """
     Generates a tensor that has the locations in the original tensor where there is a padding token as False.
 
@@ -89,13 +67,16 @@ def generate_video_padding_mask(lengths: Tensor, max_length: Optional[int] = Non
     Returns:
         Tensor: Masking boolean tensor (batch_size, 1, 1, sequence_size)
     """
+    if lengths is None:
+        return None
+
     max_length = torch.max(lengths, dim=-1)[0].item() if not max_length else max_length
 
-    lengths = lengths.unsqueeze(0).transpose(0, 1)
-    indices = torch.arange(0, max_length).unsqueeze(0)
+    lengths = lengths.unsqueeze(1)
+    indices = torch.arange(0, max_length).unsqueeze(0).to(lengths.device)
 
-    out = indices <= lengths - 1
-    return out.unsqueeze(1).unsqueeze(2).bool().to(DEVICE)
+    out = indices < lengths
+    return out.unsqueeze(1).unsqueeze(2).to(lengths.device)
 
 
 def pad_video_with_value(x: Tensor, length: int = 100, padding: float = 0):
@@ -136,32 +117,70 @@ def pad_video_with_last_frame(x: Tensor, length: int = 100):
     return out
 
 
-def decode_sentences(sequence: list, word_to_idx: dict, idx_to_word: dict):
-    assert "<pad>" in word_to_idx
-    assert "<eos>" in word_to_idx
-    assert "<sos>" in word_to_idx
+def pad_video_with_first_frame(x: Tensor, length: int = 100):
+    """
+    Given a tensor representing a video, pad the video to a specific length with the last frame.
 
-    remove_special_tokens = (
-        lambda token: token != word_to_idx["<pad>"]
-        and token != word_to_idx["<eos>"]
-        and token != word_to_idx["<sos>"]
-    )
+    Args:
+        x (Tensor): Original tensor (T, C, H, W)
+        length (int): Number of frames in returning video
 
-    sentences = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in sequence
-    ]
+    Returns:
+        Tensor: (length, C, H, W)
+    """
 
-    return sentences
+    T = x.shape[0]
+    out = x[0].repeat(length, 1, 1, 1)
+    out[length - T :] = x
+    return out
 
 
-def decode_glosses(sequence: list, gloss_to_idx: dict, idx_to_gloss: dict):
-    assert "<pad>" in gloss_to_idx
+def pad_landmarks(batch: Tensor):
+    T = max([landmarks.size(dim=0) for landmarks in batch])
+    _, features = batch[0].shape
+    res = torch.zeros(len(batch), T, features)
+    mask = torch.zeros(len(batch), T)
 
-    remove_padding = lambda x: x != gloss_to_idx["<pad>"]
+    for i, landmarks in enumerate(batch):
+        res[i, : landmarks.size(dim=0), :] = landmarks
+        mask[i, : landmarks.size(dim=0)] = 1
 
-    sequence = [
-        " ".join([idx_to_gloss[token] for token in list(filter(remove_padding, sample))])
-        for sample in sequence
-    ]
-    return sequence
+    return res, mask.unsqueeze(1).unsqueeze(2)
+
+
+def calculate_bleu_scores(predicted: list, actual: list):
+    scorer = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=True)
+    scores = []
+
+    for reference, hypothesis in zip(predicted, actual):
+        score = sentence_bleu([reference.split()], hypothesis.split(), weights=[1])
+        scores.append(score)
+
+    return torch.tensor(scores)
+
+
+def calculate_rouge_scores(predicted: list, actual: list):
+    scorer = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=True)
+    precisions = []
+    recalls = []
+    fmeasures = []
+
+    for a, b in zip(predicted, actual):
+        score = scorer.score(a, b)
+        precision, recall, fmeasure = score["rouge1"]
+
+        precisions.append(precision)
+        recalls.append(recall)
+        fmeasures.append(fmeasure)
+
+    return torch.tensor(precisions), torch.tensor(recalls), torch.tensor(fmeasures)
+
+
+if __name__ == "__main__":
+    n_features = 12
+
+    a = torch.arange(1, 6 * 4 + 1).reshape(6, 4)
+
+    batch, mask = pad_landmarks([a[:1], a[:4], a])
+    print(mask)
+    print(generate_padding_mask(batch[:, :, 0], 0))

@@ -10,7 +10,7 @@ EXTERNAL_DATA_PATH = os.path.join("data", "external")
 PROCESSED_DATA_PATH = os.path.join("data", "processed")
 
 
-def main():
+def download():
     # Creating phoenix dataset directory
     try:
         os.mkdir(os.path.join(EXTERNAL_DATA_PATH, "phoenixweather2014t"))
@@ -31,4 +31,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    download()

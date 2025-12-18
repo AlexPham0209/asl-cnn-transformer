@@ -14,26 +14,44 @@ from asl_research.dataloader import PhoenixDataset
 from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
+from torch.nn.functional import log_softmax, softmax
 
-from asl_research.utils.utils import generate_padding_mask
+from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
+
+PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
 
 with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
     config = yaml.safe_load(file)
 
 model_config = config["model"]
 training_config = config["training"]
+testing_config = config["testing"]
 
-# Creating dataset and getting gloss and word vocabulary dictionaries
-print(
-    "tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t"
-)
+# df = pd.read_csv(os.path.join(PROCESSED_PATH, "dataset.csv"))
+# train_size, valid_size, test_size = training_config["split"]
+# size = valid_size + test_size
+# test_size /= size
+# train, test = train_test_split(df, train_size=train_size, random_state=training_config["seed"])
+# test, valid = train_test_split(df, test_size=test_size, random_state=training_config["seed"])
+
+train = pd.read_csv(os.path.join(PROCESSED_PATH, "train.csv"))
+valid = pd.read_csv(os.path.join(PROCESSED_PATH, "dev.csv"))
+test = pd.read_csv(os.path.join(PROCESSED_PATH, "test.csv"))
+
+# Creating datasSet and getting gloss and word vocabulary dictionaries
 dataset = PhoenixDataset(
-    root_dir="tmp_ondemand_ocean_cis250077p_symlink/apham8/asl-cnn-transformer/data/processed/phoenixweather2014t",
-    num_frames=training_config["num_frames"],
-    target_size=(224, 224),
+    df=test,
+    root_dir=PROCESSED_PATH,
+    sampling_ratio=training_config["sampling_ratio"],
+    random_subsampling=training_config["random_sampling"],
+    random_masking=training_config["random_masking"],
+    masking_ratio=training_config["masking_ratio"],
+    is_train=False,
 )
 
 gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
@@ -53,12 +71,12 @@ model = ASLModel(
 dataloader = DataLoader(
     dataset,
     batch_size=1,
-    num_workers=0,
+    num_workers=training_config["num_workers"],
     shuffle=True,
     collate_fn=PhoenixDataset.collate_fn,
 )
 
-load_path = training_config["load_path"]
+load_path = testing_config["load_path"]
 ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
 cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
 
@@ -68,8 +86,7 @@ if len(load_path) > 0:
     checkpoint = torch.load(load_path, weights_only=False)
     curr_epoch = checkpoint["epoch"] + 1
     model.load_state_dict(checkpoint["model_state_dict"])
-    criterion = checkpoint["criterion"]
-    best_loss = checkpoint["best_loss"]
+    best_metric = checkpoint["best_metric"]
     train_loss_history = checkpoint["train_loss_history"]
     valid_loss_history = checkpoint["valid_loss_history"]
 
@@ -80,37 +97,28 @@ remove_special_tokens = (
     and token != word_to_idx["<sos>"]
 )
 
-for i in range(10):
-    videos, glosses, gloss_lengths, sentences = next(iter(dataloader))
+for i in range(50):
+    videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths = next(
+        iter(dataloader)
+    )
     videos = videos.to(DEVICE)
     glosses = glosses.to(DEVICE)
     gloss_lengths = gloss_lengths.to(DEVICE)
     sentences = sentences.to(DEVICE)
+    video_lengths = video_lengths.to(DEVICE)
 
-    encoder_out, decoder_out = model.greedy_decode(videos, max_len=30)
-    # plt.imshow(videos[0, 15].permute(1, 2, 0).cpu())
-    # plt.show()
+    encoder_out, decoder_out = model.greedy_decode(
+        videos, video_lengths, max_len=torch.max(sentence_lengths).item()
+    )
 
-    actual_sentence = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in sentences.tolist()
-    ]
+    actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
+    predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
 
-    predicted_sentence = [
-        " ".join([idx_to_word[token] for token in list(filter(remove_special_tokens, sample))])
-        for sample in decoder_out.tolist()
-    ]
+    actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
+    predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
 
-    actual_gloss_sequence = [
-        " ".join([idx_to_gloss[token] for token in sample]) for sample in glosses.tolist()
-    ]
-
-    gloss_sequence = [
-        " ".join([idx_to_gloss[token] for token in sample]) for sample in encoder_out
-    ]
-
-    print(actual_sentence[0])
-    print(predicted_sentence[0])
-    print(actual_gloss_sequence[0])
-    print(gloss_sequence[0])
+    print(f"Actual Sentence: {actual_sentence[0]}")
+    print(f"Predicted Sentence: {predicted_sentence[0]}")
+    print(f"Actual Gloss: {actual_gloss[0]}")
+    print(f"Predicted Gloss: {predicted_gloss[0]}")
     print()

@@ -7,6 +7,7 @@ import torch.nn as nn
 
 from asl_research.model.decoder import TransformerDecoder
 from asl_research.model.encoder import TransformerEncoder
+from asl_research.model.positional_embedding import PositionalEncoding
 from asl_research.utils.utils import generate_padding_mask, generate_square_subsequent_mask
 
 
@@ -42,9 +43,8 @@ class BaseTransformer(nn.Module):
         self.ff = nn.Linear(d_model, trg_vocab_size)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, src: Tensor, trg: Tensor):
-        src_mask: Tensor = generate_padding_mask(src, self.pad_token).to(src.device)
-        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token).to(trg.device)
+    def forward(self, src: Tensor, trg: Tensor, src_mask: Tensor):
+        trg_mask: Tensor = generate_square_subsequent_mask(trg, self.pad_token)
 
         src = self.src_embedding(src) * math.sqrt(self.d_model)
         trg = self.trg_embedding(trg) * math.sqrt(self.d_model)
@@ -80,7 +80,7 @@ class BaseTransformer(nn.Module):
 
         for t in range(1, max_len):
             out = sequence[:, :t]
-            trg_mask = generate_square_subsequent_mask(out, self.pad_token).to(src.device)
+            trg_mask = generate_square_subsequent_mask(out, self.pad_token)
 
             # Feeds the target and retrieves a vector (batch_size, sequence_size, trg_vocab_size)
             out = self.trg_embedding(out) * math.sqrt(self.d_model)
@@ -88,7 +88,16 @@ class BaseTransformer(nn.Module):
             out = self.softmax(self.ff(out))
 
             next_word = torch.argmax(out[:, -1], dim=-1).to(src.device)
-
+            next_word = torch.where(
+                (sequence == trg_vocab["<eos>"]).any(dim=-1),
+                trg_vocab["<eos>"],
+                next_word,
+            )
+            
+            # Concatenate the predicted token to the output sequence
+            if (next_word == trg_vocab["<eos>"]).all():
+                break
+            
             # Concatenate the predicted token to the output sequence
             sequence[:, t] = next_word
 

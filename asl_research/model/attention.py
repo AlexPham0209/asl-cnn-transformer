@@ -5,8 +5,6 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
-from asl_research.utils.utils import concat, split
-
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: float, num_heads: int = 8):
@@ -45,9 +43,9 @@ class MultiHeadAttention(nn.Module):
 
         # Split tensor into heads
         # Shape: (batch_size, num_heads, sequence_size, d_model // num_heads)
-        q = split(q, self.num_heads)
-        k = split(k, self.num_heads)
-        v = split(v, self.num_heads)
+        q = self.split(q)
+        k = self.split(k)
+        v = self.split(v)
 
         # Calculate the attention score which is used to gauge which tokens are important to each token
         # Shape: (batch_size, num_heads, sequence_size, d_model // num_heads)
@@ -55,11 +53,45 @@ class MultiHeadAttention(nn.Module):
 
         # Concatenate heads together
         # Shape: (batch_size, target_sequence_length, d_model)
-        out = concat(out)
+        out = self.concat(out)
 
         # Determines which token/word it should attend to?
         # Shape: (batch_size, target_sequence_length, d_model)
         return self.w_o(out)
+
+    def split(self, x: Tensor):
+        """
+        Splits the tensor into num_heads
+
+        Args:
+            x (Tensor): Original tensor (batch_size, sequence_size, d_model)
+
+        Returns:
+            Tensor: Tensor that is split into n heads
+            (batch_size, num_heads, sequence_size, d_model // num_heads)
+        """
+        # Shape: (batch_size, sequence_length, d_model)
+        N, length, _ = x.shape
+
+        # Reshape into (batch_size, num_heads, sequence_length, d_models // num_heads)
+        return x.reshape(N, length, self.num_heads, -1).transpose(1, 2)
+
+    def concat(self, x: Tensor):
+        """
+        Concatenate the tensor's heads together
+
+        Args:
+            x (Tensor): Original tensor (batch_size, num_heads, sequence_size, d_model // num_heads)
+
+        Returns:
+            Tensor: Tensor that is split into n heads (batch_size, sequence_size, d_model)
+        """
+
+        N, _, length, _ = x.shape
+
+        # Transpose into (batch_size, sequence_length, num_heads, d_model)
+        # Then, reshape into (batch_size, sequence_length, d_model)
+        return x.transpose(1, 2).reshape(N, length, -1)
 
 
 class ScaledDotProductAttention(nn.Module):
@@ -86,10 +118,10 @@ class ScaledDotProductAttention(nn.Module):
         qk = q @ k.transpose(-2, -1)
         scores = qk / math.sqrt(k.shape[-1])
 
-        # Filled all elements that are either padding tokens or in the future with -torch.inf
+        # Fills all elements that are either padding tokens or in the future with -torch.inf
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -torch.inf)
-
+        
         # Calculate a probability distribution with the current token to all other tokens in the sequence
         scores = self.softmax(scores)
 

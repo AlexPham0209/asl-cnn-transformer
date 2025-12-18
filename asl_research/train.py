@@ -1,3 +1,5 @@
+import itertools
+import json
 import os
 import time
 
@@ -15,358 +17,591 @@ from asl_research.model.model import ASLModel
 from asl_research.utils.early_stopping import EarlyStopping
 from torcheval.metrics.functional import word_error_rate
 
-from asl_research.utils.utils import decode_glosses, decode_sentences, generate_padding_mask
+from asl_research.utils.utils import generate_padding_mask
 import os
+from torch.nn.parallel import DistributedDataParallel
+from torch.distributed import init_process_group, destroy_process_group
+from torch.optim.lr_scheduler import LRScheduler
+from torch.utils.data.dataset import Dataset
+from torch.utils.data.distributed import DistributedSampler
+from sklearn.model_selection import train_test_split
+import torch.multiprocessing as mp
+import pandas as pd
+import torch.distributed as dist
+
+from asl_research.vocab import GlossVocabulary, TextVocabulary
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIG_PATH = "configs"
 
-PROCESSED_PATH = os.path.join("data", "processed", "phoenixweather2014t")
+DATASET_PATH = os.path.join("data", "processed", "phoenixweather2014t")
+# torch.autograd.set_detect_anomaly(True)
 
 
-def train(config: dict):
-    model_config = config["model"]
-    training_config = config["training"]
-    # Creating dataset and getting gloss and word vocabulary dictionaries
-    dataset = PhoenixDataset(
-        root_dir=PROCESSED_PATH,
-        num_frames=training_config["num_frames"],
-        target_size=(224, 224),
-        device=DEVICE,
-    )
-
-    gloss_to_idx, idx_to_gloss, word_to_idx, idx_to_word = dataset.get_vocab()
-
-    # Splitting dataset into training, validation, and testing sets
-    generator = torch.Generator().manual_seed(training_config["seed"])
-    train_set, valid_set, test_set = random_split(
-        dataset=dataset, lengths=training_config["split"], generator=generator
-    )
-
-    # Creating dataloaders for each subset
-    train_dl = DataLoader(
-        train_set,
-        batch_size=training_config["batch_size"],
-        num_workers=training_config["num_workers"],
-        shuffle=True,
-        collate_fn=PhoenixDataset.collate_fn,
-    )
-    valid_dl = DataLoader(
-        valid_set,
-        batch_size=training_config["batch_size"],
-        num_workers=training_config["num_workers"],
-        shuffle=True,
-        collate_fn=PhoenixDataset.collate_fn,
-    )
-    test_dl = DataLoader(
-        test_set,
-        batch_size=training_config["batch_size"],
-        num_workers=training_config["num_workers"],
-        shuffle=True,
-        collate_fn=PhoenixDataset.collate_fn,
-    )
-
-    # Checking that the special tokens exists inside of the vocabularies
-    assert "-" in gloss_to_idx
-    assert "<sos>" in word_to_idx
-    assert "<eos>" in word_to_idx
-
-    assert "<pad>" in gloss_to_idx
-    assert "<pad>" in word_to_idx
-
-    # Creating the model
-    model = ASLModel(
-        num_encoders=model_config["num_encoders"],
-        num_decoders=model_config["num_decoders"],
-        gloss_to_idx=gloss_to_idx,
-        idx_to_gloss=idx_to_gloss,
-        word_to_idx=word_to_idx,
-        idx_to_word=idx_to_word,
-        d_model=model_config["d_model"],
-        num_heads=model_config["num_heads"],
-        dropout=model_config["dropout"],
-    ).to(DEVICE)
-
-    # Creating the losses used for recognition and translation
-    ctc_loss = nn.CTCLoss(blank=gloss_to_idx["-"]).to(DEVICE)
-    cross_entropy_loss = nn.CrossEntropyLoss().to(DEVICE)
-
-    # Creating optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(training_config["lr"]))
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    early_stopping = EarlyStopping(
-        patience=training_config["patience"], delta=training_config["delta"]
-    )
-
-    # Loading hyperparameters
-    best_loss = torch.inf
-    train_loss_history = []
-    valid_loss_history = []
-
-    epochs = training_config["epochs"]
-    save_path = training_config["save_path"]
-    load_path = training_config["load_path"]
-    file_name = training_config["file_name"]
-
-    curr_epoch = 1
+def ddp_setup(rank, world_size):
+    """
+    Args:
+        rank: Unique identifier of each process
+        world_size: Total number of processes
+    """
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"
+    torch.cuda.set_device(rank)
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
-    if len(load_path) > 0:
-        assert os.path.exists(load_path)
-        print("Loading checkpoint...")
-        checkpoint = torch.load(load_path, weights_only=False)
-        curr_epoch = checkpoint["epoch"] + 1
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        best_loss = checkpoint["best_loss"]
-        train_loss_history = checkpoint["train_loss_history"]
-        valid_loss_history = checkpoint["valid_loss_history"]
-        torch.cuda.empty_cache()
+class Trainer:
+    def __init__(
+        self,
+        model: ASLModel,
+        gloss_vocab: GlossVocabulary,
+        text_vocab: TextVocabulary,
+        train_dl: DataLoader,
+        valid_dl: DataLoader,
+        test_dl: DataLoader,
+        optimizer: Optimizer,
+        scheduler: LRScheduler,
+        early_stopping: EarlyStopping,
+        config: dict,
+        gpu_id: int,
+    ):
+        self.model = model.to(gpu_id)
+        self.gpu_id = gpu_id
+        self.config = config
+        self.model_config = config["model"]
+        self.training_config = config["training"]
 
-    if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
-        model = nn.DataParallel(model)
-    model.to(DEVICE)
-    
-    # Start training
-    # valid_loss, valid_wer = validate(
-    #     model,
-    #     valid_dl,
-    #     ctc_loss,
-    #     cross_entropy_loss,
-    #     gloss_to_idx,
-    #     idx_to_gloss,
-    #     word_to_idx,
-    #     idx_to_word,
-    #     training_config["train_recognition"],
-    #     training_config["train_translation"],
-    # )
-    # print(f"Valid Average loss: {valid_loss:>8f}")
-    # print(f"Valid Word Error Rate: {valid_wer:>8f}\n")
+        # Vocab
+        self.gloss_vocab = gloss_vocab
+        self.text_vocab = text_vocab
 
-    for epoch in range(curr_epoch, epochs + 1):
-        start_time = time.time()
-        train_recognition_loss, train_translation_loss, train_loss = train_epoch(
-            model,
-            train_dl,
-            optimizer,
-            ctc_loss,
-            cross_entropy_loss,
-            epoch,
-            training_config["train_recognition"],
-            training_config["train_translation"],
+        # Saving dataloaders
+        self.train_dl = train_dl
+        self.valid_dl = valid_dl
+        self.test_dl = test_dl
+
+        # Config and training settings
+        self.best_metric = torch.inf
+        self.train_loss_history = []
+        self.valid_loss_history = []
+
+        self.epochs = self.training_config["epochs"]
+        self.curr_epoch = 1
+
+        self.save_path = self.training_config["save_path"]
+        self.load_path = self.training_config["load_path"]
+        self.file_name = self.training_config["file_name"]
+        self.diagram_path = self.training_config["diagram_path"]
+        self.save_every = self.training_config["save_every"]
+        self.validate_every = self.training_config["validate_every"]
+
+        # Set up loss weights
+        self.recognition_weight = self.training_config["recognition_weight"]
+        self.translation_weight = self.training_config["translation_weight"]
+
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.early_stopping = early_stopping
+
+        # Load checkpoint
+        self._load_checkpoint()
+
+        # Convert model into DistributedDataParallel model using GPU {gpu_id}
+        self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+        self.model = DistributedDataParallel(self.model, device_ids=[gpu_id])
+
+        # Creating the losses used for recognition and translation
+        self.ctc_loss = nn.CTCLoss(blank=self.gloss_vocab.blank_token, zero_infinity=True).to(gpu_id)
+        self.cross_entropy_loss = nn.CrossEntropyLoss(ignore_index=self.text_vocab.pad_token).to(
+            gpu_id
         )
 
+    def train(self):
+        self._save_diagrams()
         (
             valid_recognition_loss,
             valid_translation_loss,
             valid_loss,
             valid_gloss_wer,
             valid_sentence_wer,
-        ) = validate(
-            model,
-            valid_dl,
-            ctc_loss,
-            cross_entropy_loss,
-            gloss_to_idx,
-            idx_to_gloss,
-            word_to_idx,
-            idx_to_word,
-            training_config["train_recognition"],
-            training_config["train_translation"],
-        )
+        ) = self._validate()
 
-        train_loss_history.append(train_loss)
-        valid_loss_history.append(valid_loss)
+        if self.gpu_id == 0:
+            print(f"Starting Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - ")
+            print(f"Starting Average Sentence Loss: {valid_translation_loss.item():4f}", end=" - ")
+            print(f"Starting Average Loss: {valid_loss.item():.4f}", end=" - ")
+            print(f"Starting Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
+            print(f"Starting Sentence WER: {valid_sentence_wer:.2f}%\n")
 
-        if valid_loss < best_loss:
-            best_loss = valid_loss
-            print("\nNew best model, saving...")
-            model_state_dict = model.module.state_dict() if isinstance(nn.DataParallel) else model.state_dict()
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "best_loss": best_loss,
-                    "train_loss_history": train_loss_history,
-                    "valid_loss_history": valid_loss_history,
-                },
-                os.path.join(save_path, f"{file_name}.pt"),
+        for epoch in range(self.curr_epoch, self.epochs + 1):
+            start_time = time.time()
+            train_recognition_loss, train_translation_loss, train_loss = self._train_epoch(epoch)
+            self.train_loss_history.append((epoch, train_loss))
+            total_time = time.time() - start_time
+
+            if self.gpu_id == 0:
+                print(f"Epoch Time: {total_time:.1f} seconds", end=" - ")
+                print(
+                    f"Training Average Gloss Loss: {train_recognition_loss.item():.4f}", end=" - "
+                )
+                print(
+                    f"Training Average Sentence Loss: {train_translation_loss.item():.4f}",
+                    end=" - ",
+                )
+                print(f"Training Average Loss: {train_loss.item():.4f}\n")
+
+            if epoch % self.validate_every == 0:
+                start_time = time.time()
+                (
+                    valid_recognition_loss,
+                    valid_translation_loss,
+                    valid_loss,
+                    valid_gloss_wer,
+                    valid_sentence_wer,
+                ) = self._validate(epoch)
+                total_time = time.time() - start_time
+
+                # Saving model
+                self.valid_loss_history.append((epoch, valid_loss))
+
+                if self.gpu_id == 0:
+                    print(f"Validation Time: {total_time:.1f} seconds", end=" - ")
+
+                    # Showing metrics
+                    print(
+                        f"Valid Average Gloss Loss: {valid_recognition_loss.item():.4f}", end=" - "
+                    )
+                    print(
+                        f"Valid Average Sentence Loss: {valid_translation_loss.item():.4f}",
+                        end=" - ",
+                    )
+                    print(f"Valid Average Loss: {valid_loss.item():.4f}", end=" - ")
+                    print(f"Valid Gloss WER: {valid_gloss_wer:.2f}%", end=" - ")
+                    print(f"Valid Sentence WER: {valid_sentence_wer:.2f}%\n")
+
+                self._save_best(epoch, valid_gloss_wer)
+                self.scheduler.step(valid_loss)
+
+            self._save_checkpoint(epoch)
+
+            # Step scheduler and early stopping
+
+            # if self.early_stopping.early_stop(valid_loss):
+            #     print("Early stopping")
+            #     break
+        self._save_diagrams()
+
+    def _train_epoch(self, epoch: int = 1):
+        self.model.train()
+        self.train_dl.sampler.set_epoch(epoch)
+
+        losses = 0.0
+        recognition_losses = 0.0
+        translation_losses = 0.0
+        dl = self.train_dl if self.gpu_id != 0 else tqdm(self.train_dl, desc=f"Epoch {epoch}")
+
+        for videos, video_lengths, glosses, gloss_lengths, sentences, _ in dl:
+            videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
+            glosses = glosses.to(self.gpu_id)
+            gloss_lengths = gloss_lengths.to(self.gpu_id)
+            sentences = sentences.to(self.gpu_id)
+
+            self.optimizer.zero_grad()
+            encoder_out, decoder_out, lengths = self.model(
+                videos, sentences[:, :-1], video_lengths
             )
 
-        total_time = time.time() - start_time
-        print(f"\nEpoch Time: {total_time:.1f} seconds")
-        print(f"Training Average Recognition Loss: {train_recognition_loss:>8f}")
-        print(f"Training Average Translation Loss: {train_translation_loss:>8f}")
-        print(f"Training Average Joint Loss: {train_loss:>8f}\n")
-
-        print(f"Valid Average Recognition Loss: {valid_recognition_loss:>8f}")
-        print(f"Training Average Translation Loss: {valid_translation_loss:>8f}")
-        print(f"Valid Average Loss: {valid_loss:>8f}")
-        print(f"Valid Gloss Word Error Rate: {valid_gloss_wer:>8f}")
-        print(f"Valid Sentence Word Error Rate: {valid_sentence_wer:>8f}\n")
-
-        scheduler.step(valid_loss)
-        if early_stopping.early_stop(valid_loss):
-            print("Early stopping")
-            break
-
-    # Plot model's loss over epochs
-    plt.title("Model Loss")
-    plt.ylabel("Loss")
-    plt.xlabel("Epoch")
-
-    plt.locator_params(axis="x", integer=True, tight=True)
-    plt.plot(train_loss_history, label="train")
-    plt.plot(valid_loss_history, label="valid")
-    plt.legend(["train", "valid"], loc="upper left")
-
-    plt.show()
-
-
-def train_epoch(
-    model: ASLModel,
-    data: DataLoader,
-    optimizer: Optimizer,
-    ctc_loss: nn.CTCLoss,
-    cross_entropy_loss: nn.CrossEntropyLoss,
-    epoch: int = 1,
-    train_recognition: bool = True,
-    train_translation: bool = True,
-):
-    model.train()
-    losses = 0.0
-    recognition_losses = 0.0
-    translation_losses = 0.0
-
-    for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Epoch {epoch}"):
-        videos = videos.to(DEVICE)
-        glosses = glosses.to(DEVICE)
-        gloss_lengths = gloss_lengths.to(DEVICE)
-        sentences = sentences.to(DEVICE)
-
-        optimizer.zero_grad()
-
-        # Should output the encoder output
-        # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
-        # decoder_out: (batch_size, video_length, word_vocab_size)
-        encoder_out, decoder_out = model(videos, sentences[:, :-1])
-
-        # Encoder loss
-        recognition_loss = torch.tensor(0.0)
-        if train_recognition:
+            # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-            recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            T, N, C = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
+            recognition_loss = (
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
+                * self.recognition_weight
+            )
 
-        # Decoder loss
-        translation_loss = torch.tensor(0.0)
-        if train_translation:
-            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]), dim=-1)
+            # Decoder loss
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
             expected = sentences[:, 1:].reshape(-1)
-            translation_loss = cross_entropy_loss(actual, expected)
+            translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
 
-        # Calculating the joint loss
-        recognition_losses += recognition_loss.item()
-        translation_losses += translation_loss.item()
-        loss = recognition_loss + translation_loss
-        losses += loss.item()
+            # Calculating the joint loss
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
 
-        loss.backward()
-        optimizer.step()
+            loss = recognition_loss + translation_loss
+            losses += loss.item() * videos.size(0)
 
-    return recognition_losses / len(data), translation_losses / len(data), losses / len(data)
+            loss.backward()
 
+            # Clip gradient by norm
+            nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=self.training_config["max_norm"]
+            )
+            self.optimizer.step()
 
-def validate(
-    model: ASLModel,
-    data: DataLoader,
-    ctc_loss: nn.CTCLoss,
-    cross_entropy_loss: nn.CrossEntropyLoss,
-    gloss_to_idx: dict,
-    idx_to_gloss: dict,
-    word_to_idx: dict,
-    idx_to_word: dict,
-    validate_recognition: bool = True,
-    validate_translation: bool = True,
-):
-    model.eval()
+        # Calculating global average loss among all devices
+        losses = torch.tensor(losses).to(self.gpu_id)
+        recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
+        translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
 
-    losses = 0.0
-    recognition_losses = 0.0
-    translation_losses = 0.0
+        torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
 
-    actual_sentences = []
-    predicted_sentences = []
+        return (
+            recognition_losses / len(self.train_dl.dataset),
+            translation_losses / len(self.train_dl.dataset),
+            losses / len(self.train_dl.dataset),
+        )
 
-    actual_glosses = []
-    predicted_glosses = []
+    def _validate(self, epoch: int = 1):
+        self.model.eval()
+        self.valid_dl.sampler.set_epoch(epoch)
 
-    for videos, glosses, gloss_lengths, sentences in tqdm(data, desc=f"Validating"):
-        videos = videos.to(DEVICE)
-        glosses = glosses.to(DEVICE)
-        gloss_lengths = gloss_lengths.to(DEVICE)
-        sentences = sentences.to(DEVICE)
+        losses = 0.0
+        recognition_losses = 0.0
+        translation_losses = 0.0
 
-        encoder_out, decoder_out = model.module.greedy_decode(videos)
+        actual_sentences = []
+        predicted_sentences = []
 
-        # # Convert output tensors into strings
-        actual_gloss = decode_glosses(glosses.tolist(), gloss_to_idx, idx_to_gloss)
-        predicted_gloss = decode_glosses(encoder_out, gloss_to_idx, idx_to_gloss)
+        actual_glosses = []
+        predicted_glosses = []
 
-        actual_sentence = decode_sentences(sentences.tolist(), word_to_idx, idx_to_word)
-        predicted_sentence = decode_sentences(decoder_out.tolist(), word_to_idx, idx_to_word)
+        dl = self.valid_dl if self.gpu_id != 0 else tqdm(self.valid_dl, desc=f"Validating")
 
-        # Add to collection of sentences and glosses for WER calculation
-        actual_glosses.extend(actual_gloss)
-        predicted_glosses.extend(predicted_gloss)
+        for videos, video_lengths, glosses, gloss_lengths, sentences, sentence_lengths in dl:
+            videos = videos.to(self.gpu_id)
+            video_lengths = video_lengths.to(self.gpu_id)
 
-        actual_sentences.extend(actual_sentence)
-        predicted_sentences.extend(predicted_sentence)
+            glosses = glosses.to(self.gpu_id)
+            gloss_lengths = gloss_lengths.to(self.gpu_id)
 
-        # Should outpust the encoder output
-        # encoder_out: (batch_size, gloss_sequence_length, gloss_vocab_size)
-        # decoder_out: (batch_size, sentence_length, word_vocab_size)
-        encoder_out, decoder_out = model(videos, sentences[:, :-1])
+            sentences = sentences.to(self.gpu_id)
+            sentence_lengths = sentence_lengths.to(self.gpu_id)
 
-        # Encoder loss
-        recognition_loss = torch.tensor(0.0)
-        if validate_recognition:
+            # Greedy decode the sequences 
+            with torch.no_grad():
+                encoder_out, decoder_out = self.model.module.greedy_decode(
+                    videos,
+                    src_lengths=video_lengths,
+                    max_len=torch.max(sentence_lengths).item(),
+                )
+            
+            # Convert output tensors into strings
+            actual_gloss = self.gloss_vocab.decode_batch(glosses.tolist())
+            predicted_gloss = self.gloss_vocab.decode_batch(encoder_out)
+
+            actual_sentence = self.text_vocab.decode_batch(sentences.tolist())
+            predicted_sentence = self.text_vocab.decode_batch(decoder_out.tolist())
+
+            # Add to collection of sentences and glosses for WER calculation
+            actual_glosses.extend(actual_gloss)
+            predicted_glosses.extend(predicted_gloss)
+
+            actual_sentences.extend(actual_sentence)
+            predicted_sentences.extend(predicted_sentence)
+
+            with torch.no_grad():
+                encoder_out, decoder_out, lengths = self.model(
+                    videos, sentences[:, :-1], video_lengths
+                )
+            
+            # Encoder loss
             encoder_out = log_softmax(encoder_out.permute(1, 0, 2), dim=-1)
-            T, N, _ = encoder_out.shape
-            input_lengths = torch.full(size=(N,), fill_value=T).to(DEVICE)
-            recognition_loss = ctc_loss(encoder_out, glosses, input_lengths, gloss_lengths)
+            T, N, C = encoder_out.shape
+            input_lengths = torch.full(size=(N,), fill_value=T).to(self.gpu_id)
+            recognition_loss = (
+                self.ctc_loss(encoder_out, glosses, lengths, gloss_lengths)
+                * self.recognition_weight
+            )
+
+            # Decoder loss
+            actual = decoder_out.reshape(-1, decoder_out.shape[-1])
+            expected = sentences[:, 1:].reshape(-1)
+            translation_loss = self.cross_entropy_loss(actual, expected) * self.translation_weight
+
+            # Calculating the joint loss
+            recognition_losses += recognition_loss.item() * videos.size(0)
+            translation_losses += translation_loss.item() * videos.size(0)
+
+            loss = recognition_loss + translation_loss
+            losses += loss.item() * videos.size(0)
+
+        # Calculating global average loss among all devices
+        losses = torch.tensor(losses).to(self.gpu_id)
+        recognition_losses = torch.tensor(recognition_losses).to(self.gpu_id)
+        translation_losses = torch.tensor(translation_losses).to(self.gpu_id)
+
+        torch.distributed.all_reduce(losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(recognition_losses, op=dist.ReduceOp.SUM)
+        torch.distributed.all_reduce(translation_losses, op=dist.ReduceOp.SUM)
+
+        # Gather all samples with their targets from all workers in order to calculate global metrics
+        predicted_glosses, actual_glosses, predicted_sentences, actual_sentences = (
+            self.gather_samples(
+                predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
+            )
+        )
+
+        if self.gpu_id == 0:
+            print(f"Predicted Sentences: {predicted_sentences}")
+            print(f"Actual Sentences: {actual_sentences}")
+            print(f"Length of Actual Sentences: {len(actual_sentences)}")
+
+        return (
+            recognition_losses / len(self.valid_dl.dataset),
+            translation_losses / len(self.valid_dl.dataset),
+            losses / len(self.valid_dl.dataset),
+            word_error_rate(predicted_glosses, actual_glosses) * 100.0,
+            word_error_rate(predicted_sentences, actual_sentences) * 100.0,
+        )
+
+    def gather_samples(
+        self, predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
+    ):
+        world_size = dist.get_world_size()
+        gathered_predicted_glosses = [None for _ in range(world_size)]
+        gathered_actual_glosses = [None for _ in range(world_size)]
+
+        gathered_predicted_sentences = [None for _ in range(world_size)]
+        gathered_actual_sentences = [None for _ in range(world_size)]
+
+        dist.all_gather_object(gathered_predicted_glosses, predicted_glosses)
+        dist.all_gather_object(gathered_actual_glosses, actual_glosses)
+        dist.all_gather_object(gathered_predicted_sentences, predicted_sentences)
+        dist.all_gather_object(gathered_actual_sentences, actual_sentences)
+
+        predicted_glosses = list(itertools.chain.from_iterable(gathered_predicted_glosses))
+        actual_glosses = list(itertools.chain.from_iterable(gathered_actual_glosses))
+        predicted_sentences = list(itertools.chain.from_iterable(gathered_predicted_sentences))
+        actual_sentences = list(itertools.chain.from_iterable(gathered_actual_sentences))
+
+        return predicted_glosses, actual_glosses, predicted_sentences, actual_sentences
+
+    def _load_checkpoint(self):
+        if len(self.load_path) <= 0 or not isinstance(self.model, ASLModel):
+            return
+
+        assert os.path.exists(self.load_path), "Load path doesn't exist"
+        print("Loading checkpoint...")
+        checkpoint = torch.load(self.load_path, weights_only=False)
+        self.curr_epoch = checkpoint["epoch"] + 1
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.best_metric = checkpoint["best_metric"]
+        self.train_loss_history = checkpoint["train_loss_history"]
+        self.valid_loss_history = checkpoint["valid_loss_history"]
+
+    def _save_best(self, epoch: int, metric: float):
+        if metric > self.best_metric or self.gpu_id != 0:
+            return
+
+        self.best_metric = metric
+        print("New best model, saving...\n")
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": self.model.module.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "best_metric": self.best_metric,
+                "train_loss_history": self.train_loss_history,
+                "valid_loss_history": self.valid_loss_history,
+                "config": self.config,
+            },
+            os.path.join(self.save_path, f"{self.file_name}.pt"),
+        )
+
+    def _save_checkpoint(self, epoch: int):
+        if epoch % self.save_every != 0 or self.gpu_id != 0:
+            return
+
+        print("Checkpoint, saving...\n")
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": self.model.module.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "best_metric": self.best_metric,
+                "train_loss_history": self.train_loss_history,
+                "valid_loss_history": self.valid_loss_history,
+            },
+            os.path.join(self.save_path, f"epoch_{epoch}.pt"),
+        )
+
+    def _save_diagrams(self):
+        if (
+            self.gpu_id != 0
+            or len(self.train_loss_history) <= 0
+            or len(self.valid_loss_history) <= 0
+        ):
+            return
+
+        assert os.path.exists(self.diagram_path), "Diagram path doesn't exist"
+        plt.title("Model Loss")
+        plt.ylabel("Loss")
+        plt.xlabel("Epoch")
+
+        train_epochs, train_losses = zip(*self.train_loss_history)
+        valid_epochs, valid_losses = zip(*self.valid_loss_history)
+        train_losses = [t.item() for t in train_losses]
+        valid_losses = [t.item() for t in valid_losses]
+
+        plt.locator_params(axis="x", integer=True, tight=True)
+        plt.plot(train_epochs, train_losses, label="train")
+        plt.plot(valid_epochs, valid_losses, label="valid")
+        plt.legend(["train", "valid"], loc="upper left")
+
+        plt.savefig(os.path.join(self.diagram_path, "figure.png"))
+
+
+def create_vocab(vocab_path: str):
+    assert os.path.exists(vocab_path), "Vocab path doesn't exist"
+    vocab = json.load(open(vocab_path))
+    glosses = vocab["glosses"]
+    words = vocab["words"]
+
+    gloss_vocab = GlossVocabulary(glosses=glosses)
+    text_vocab = TextVocabulary(words=words)
     
-        # Decoder loss
-        translation_loss = torch.tensor(0.0)
-        if validate_translation:
-            actual = softmax(decoder_out.reshape(-1, decoder_out.shape[-1]))
-            expected = sentences[:, 1:].reshape(-1)
-            translation_loss = cross_entropy_loss(actual, expected)
+    return gloss_vocab, text_vocab
 
-        # Calculating the joint loss
-        recognition_losses += recognition_loss.item()
-        translation_losses += translation_loss.item()
-        loss = recognition_loss + translation_loss
-        losses += loss.item()
 
-    return (
-        recognition_losses / len(data),
-        translation_losses / len(data),
-        losses / len(data),
-        word_error_rate(predicted_sentences, actual_sentences),
-        word_error_rate(actual_glosses, actual_glosses),
+def create_datasets(
+    training_config: dict, gloss_vocab: GlossVocabulary, text_vocab: TextVocabulary
+):
+    train = pd.read_csv(os.path.join(DATASET_PATH, "train.csv")).head(n=20)
+    valid = pd.read_csv(os.path.join(DATASET_PATH, "dev.csv"))
+    test = pd.read_csv(os.path.join(DATASET_PATH, "test.csv"))
+
+    train_set = PhoenixDataset(
+        df=train,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
+        sampling_ratio=training_config["sampling_ratio"],
+        random_sampling=training_config["random_sampling"],
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
+        is_train=True,
     )
+
+    valid_set = PhoenixDataset(
+        df=valid,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
+        sampling_ratio=training_config["sampling_ratio"],
+        random_sampling=training_config["random_sampling"],
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
+        is_train=False,
+    )
+
+    test_set = PhoenixDataset(
+        df=test,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
+        sampling_ratio=training_config["sampling_ratio"],
+        random_sampling=training_config["random_sampling"],
+        random_masking=training_config["random_masking"],
+        masking_ratio=training_config["masking_ratio"],
+        is_train=False,
+    )
+
+    return train_set, valid_set, test_set
+
+def create_dataloaders(training_config, train_set, valid_set, test_set):
+    # Creating dataloaders for each subset
+    train_dl = DataLoader(
+        train_set,
+        batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
+        pin_memory=True,
+        sampler=DistributedSampler(train_set),
+    )
+    valid_dl = DataLoader(
+        valid_set,
+        batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
+        pin_memory=True,
+        sampler=DistributedSampler(valid_set),
+    )
+    test_dl = DataLoader(
+        test_set,
+        batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
+        collate_fn=PhoenixDataset.collate_fn_landmarks,
+        pin_memory=True,
+        sampler=DistributedSampler(test_set),
+    )
+
+    return train_dl, valid_dl, test_dl
+
+
+def start_training(rank: int, world_size: int, config: dict):
+    ddp_setup(rank, world_size)
+    model_config = config["model"]
+    training_config = config["training"]
+
+    gloss_vocab, text_vocab = create_vocab(os.path.join(DATASET_PATH, "vocab.json"))
+    train_set, valid_set, test_set = create_datasets(training_config, gloss_vocab, text_vocab)
+    train_dl, valid_dl, test_dl = create_dataloaders(training_config, train_set, valid_set, test_set)
+    
+    # Creating the model
+    model = ASLModel(
+        num_encoders=model_config["num_encoders"],
+        num_decoders=model_config["num_decoders"],
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
+        d_model=model_config["d_model"],
+        num_heads=model_config["num_heads"],
+        dropout=model_config["dropout"],
+    )
+
+    # Creating optimizer
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(training_config["lr"]),
+        weight_decay=float(training_config["weight_decay"]),
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, "min", factor=0.8, patience=2, min_lr=1e-6
+    )
+    early_stopping = EarlyStopping(
+        patience=training_config["patience"], delta=training_config["delta"]
+    )
+
+    trainer = Trainer(
+        model=model,
+        gloss_vocab=gloss_vocab,
+        text_vocab=text_vocab,
+        train_dl=train_dl,
+        valid_dl=train_dl,
+        test_dl=train_dl,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        early_stopping=early_stopping,
+        config=config,
+        gpu_id=rank,
+    )
+
+    trainer.train()
+    destroy_process_group()
 
 
 def main():
     with open(os.path.join(CONFIG_PATH, "model.yaml"), "r") as file:
         config = yaml.safe_load(file)
 
-    train(config)
+    world_size = torch.cuda.device_count()
+    print(f"GPU count: {world_size}")
+
+    assert world_size > 0, "Not enough GPUs (Need more than 1)"
+    mp.spawn(start_training, args=(world_size, config), nprocs=world_size)
 
 
 if __name__ == "__main__":
